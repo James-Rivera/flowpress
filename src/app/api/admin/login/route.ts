@@ -1,12 +1,23 @@
 import { NextResponse } from "next/server";
 import {
   ADMIN_SESSION_COOKIE,
-  getAdminSessionToken,
+  createAdminSessionToken,
+  getAdminAuthConfigurationError,
+  getAdminSessionMaxAge,
   isValidStaffLogin,
 } from "@/lib/admin-auth";
 
 export async function POST(request: Request) {
   try {
+    const configurationError = getAdminAuthConfigurationError();
+
+    if (configurationError) {
+      return NextResponse.json(
+        { success: false, error: configurationError },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
     const username = typeof body?.username === "string" ? body.username.trim() : "";
     const password = typeof body?.password === "string" ? body.password : "";
@@ -21,12 +32,12 @@ export async function POST(request: Request) {
     const response = NextResponse.json({ success: true });
     response.cookies.set({
       name: ADMIN_SESSION_COOKIE,
-      value: getAdminSessionToken(),
+      value: createAdminSessionToken(),
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
-      maxAge: 60 * 60 * 12,
+      maxAge: getAdminSessionMaxAge(),
     });
 
     return response;

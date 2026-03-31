@@ -1,29 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-
-type FileKind = "pdf" | "image" | "text" | "office" | "other";
-
-function encodePathSegments(relativePath: string) {
-  return relativePath
-    .split("/")
-    .filter(Boolean)
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
-}
-
-function getFileKind(fileName: string): FileKind {
-  const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
-
-  if (extension === "pdf") return "pdf";
-  if (["jpg", "jpeg", "png", "gif", "webp"].includes(extension)) return "image";
-  if (["txt", "md", "csv", "json", "log"].includes(extension)) return "text";
-  if (["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(extension)) return "office";
-
-  return "other";
-}
+import { encodePathSegments, getRelativePathFileName, isPreviewSupported } from "@/lib/file-types";
 
 function AdminPrintPageContent() {
   const searchParams = useSearchParams();
@@ -31,14 +11,10 @@ function AdminPrintPageContent() {
   const frameRef = useRef<HTMLIFrameElement>(null);
 
   const relativePath = searchParams.get("path") ?? "";
-  const fileName = useMemo(() => {
-    const segments = relativePath.split("/").filter(Boolean);
-    return segments.length > 0 ? segments[segments.length - 1] : "file";
-  }, [relativePath]);
-  const encodedPath = useMemo(() => encodePathSegments(relativePath), [relativePath]);
+  const fileName = getRelativePathFileName(relativePath);
+  const encodedPath = encodePathSegments(relativePath);
 
-  const fileKind = useMemo(() => getFileKind(fileName), [fileName]);
-  const canPreview = fileKind === "pdf" || fileKind === "image" || fileKind === "text";
+  const canPreview = isPreviewSupported(fileName);
   const sourceUrl = `/api/uploads/${encodedPath}`;
   const downloadUrl = `/api/uploads/${encodedPath}?download=1`;
 

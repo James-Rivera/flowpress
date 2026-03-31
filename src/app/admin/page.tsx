@@ -5,14 +5,15 @@ import ConfirmActionForm from "@/app/admin/_components/confirm-action-form";
 import LiveAutoRefresh from "@/app/admin/_components/live-auto-refresh";
 import NoticeToast from "@/app/admin/_components/notice-toast";
 import PreviewPanel from "@/app/admin/_components/preview-panel";
-import { ADMIN_SESSION_COOKIE, getAdminSessionToken } from "@/lib/admin-auth";
-import { listDoneJobs, listUploadJobs, type PrintJob } from "@/lib/print-jobs";
+import { ADMIN_SESSION_COOKIE, isAdminSessionCookieValue } from "@/lib/admin-auth";
+import { encodePathSegments, getFileKind } from "@/lib/file-types";
+import { type PrintJob } from "@/lib/print-jobs";
+import { getQueueSnapshot } from "@/lib/print-job-service";
 
 export const dynamic = "force-dynamic";
 
 type AdminSearchParams = {
   view?: string;
-  folder?: string;
   preview?: string;
   autoAdvance?: string;
   notice?: string;
@@ -79,23 +80,6 @@ function buildPrintTabHref(relativePath: string) {
   const params = new URLSearchParams();
   params.set("path", relativePath);
   return `/admin/print?${params.toString()}`;
-}
-
-function getFileKind(fileName: string) {
-  const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
-
-  if (extension === "pdf") return "pdf";
-  if (["jpg", "jpeg", "png", "gif", "webp"].includes(extension)) return "image";
-  if (["txt", "md", "csv", "json", "log"].includes(extension)) return "text";
-  return "other";
-}
-
-function encodePathSegments(relativePath: string) {
-  return relativePath
-    .split("/")
-    .filter(Boolean)
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
 }
 
 function buildPreferredPrintHref(relativePath: string, fileName: string) {
@@ -176,7 +160,7 @@ export default async function AdminPage({
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get(ADMIN_SESSION_COOKIE)?.value;
 
-  if (sessionCookie !== getAdminSessionToken()) {
+  if (!isAdminSessionCookieValue(sessionCookie)) {
     redirect("/admin/login");
   }
 
@@ -187,13 +171,14 @@ export default async function AdminPage({
   const notice = getSearchParam(params.notice);
   const tone = getSearchParam(params.tone);
 
-  const [activeJobs, doneJobs] = await Promise.all([listUploadJobs(), listDoneJobs()]);
+  const snapshot = await getQueueSnapshot();
+  const { doneJobs, pendingJobs, nowPrinting } = snapshot;
 
-  const nowPrinting = activeJobs.find((job) => job.metadata.status === "printing") ?? null;
-  const pendingJobs = activeJobs.filter((job) => job.metadata.status === "pending");
-
-  const previewPool = view === "done" ? doneJobs : [...activeJobs, ...doneJobs];
-  const previewJob = previewPool.find((job) => job.relativePath === selectedPreview) ?? nowPrinting;
+  const previewJob =
+    (view === "done"
+      ? snapshot.doneJobsByPath.get(selectedPreview)
+      : snapshot.activeJobsByPath.get(selectedPreview) ?? snapshot.doneJobsByPath.get(selectedPreview)) ??
+    nowPrinting;
 
   const queueReturnTo = buildReturnTo("queue", previewJob?.relativePath, autoAdvanceEnabled);
   const doneReturnTo = buildReturnTo("done", previewJob?.relativePath, autoAdvanceEnabled);

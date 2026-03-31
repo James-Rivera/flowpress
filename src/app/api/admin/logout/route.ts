@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_SESSION_COOKIE } from "@/lib/admin-auth";
+import { isSafeAdminReturnPath } from "@/lib/admin-route";
 
 export async function POST(request: NextRequest) {
-  const returnTo =
-    request.nextUrl.searchParams.get("returnTo")?.trim() || "/admin/login?notice=Logged+out";
+  const requestedReturnTo = request.nextUrl.searchParams.get("returnTo")?.trim() || "";
+  const returnTo = isSafeAdminReturnPath(requestedReturnTo)
+    ? requestedReturnTo
+    : "/admin/login?notice=Logged+out";
 
   const response = NextResponse.redirect(new URL(returnTo, request.url));
   response.cookies.set({

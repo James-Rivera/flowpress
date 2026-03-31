@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { normalizeDisplayFilename } from "@/lib/file-types";
 
 type QueueStatus = "pending" | "printing" | "done" | "missing";
 
@@ -27,15 +28,6 @@ type RecentBatch = {
   totalFiles: number;
   summary: QueueSummary;
 };
-
-function normalizeDisplayFilename(name: string) {
-  const cleaned = name
-    .replace(/^[0-9]+-B-[A-Z0-9-]+-[0-9]+-/, "")
-    .replace(/_/g, " ")
-    .trim();
-
-  return cleaned || name;
-}
 
 function prettyStatus(status: QueueStatus) {
   if (status === "printing") return "Printing now";

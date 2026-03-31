@@ -1,5 +1,4 @@
 import { randomBytes } from "node:crypto";
-import path from "node:path";
 import { NextResponse } from "next/server";
 import {
   getActiveStorageDriver,
@@ -7,57 +6,16 @@ import {
   getUploadsRootDir,
   storeUploadedBatch,
 } from "@/lib/print-jobs";
+import { getServerUploadLimits, validateUploadFiles } from "@/lib/upload-rules";
 
 export const runtime = "nodejs";
 
-function getPositiveIntFromEnv(name: string, fallback: number) {
-  const rawValue = process.env[name];
-
-  if (!rawValue) {
-    return fallback;
-  }
-
-  const parsed = Number.parseInt(rawValue, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-
-  return parsed;
-}
-
-const ALLOWED_FILE_EXTENSIONS = new Set([
-  ".pdf",
-  ".jpg",
-  ".jpeg",
-  ".png",
-  ".webp",
-  ".doc",
-  ".docx",
-  ".xls",
-  ".xlsx",
-  ".ppt",
-  ".pptx",
-  ".txt",
-  ".csv",
-]);
-const MAX_FILE_COUNT = getPositiveIntFromEnv("UPLOAD_MAX_FILE_COUNT", 20);
-const MAX_FILE_SIZE_MB = getPositiveIntFromEnv("UPLOAD_MAX_FILE_SIZE_MB", 100);
-const MAX_BATCH_SIZE_MB = getPositiveIntFromEnv("UPLOAD_MAX_BATCH_SIZE_MB", 500);
-const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-const MAX_BATCH_SIZE_BYTES = MAX_BATCH_SIZE_MB * 1024 * 1024;
+const UPLOAD_LIMITS = getServerUploadLimits();
 
 function createBatchId() {
   const timestamp = Date.now().toString(36).toUpperCase();
   const random = randomBytes(5).toString("hex").toUpperCase();
   return `B-${timestamp}-${random}`;
-}
-
-function getFileExtension(fileName: string) {
-  return path.extname(fileName).toLowerCase();
-}
-
-function isFileAllowed(fileName: string) {
-  return ALLOWED_FILE_EXTENSIONS.has(getFileExtension(fileName));
 }
 
 export async function POST(request: Request) {
@@ -95,48 +53,16 @@ export async function POST(request: Request) {
       );
     }
 
-    if (uploadedFiles.length > MAX_FILE_COUNT) {
+    const validationError = validateUploadFiles(uploadedFiles, UPLOAD_LIMITS);
+
+    if (validationError) {
       return NextResponse.json(
         {
           success: false,
-          error: `Too many files. Maximum is ${MAX_FILE_COUNT} files per batch.`,
+          error: validationError,
         },
         { status: 400 }
       );
-    }
-
-    let totalBatchBytes = 0;
-    for (const file of uploadedFiles) {
-      if (!isFileAllowed(file.name)) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Unsupported file type for ${file.name}. Allowed: PDF, images, Office docs, TXT, CSV.`,
-          },
-          { status: 400 }
-        );
-      }
-
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `File too large: ${file.name}. Maximum size is ${MAX_FILE_SIZE_MB}MB per file.`,
-          },
-          { status: 400 }
-        );
-      }
-
-      totalBatchBytes += file.size;
-      if (totalBatchBytes > MAX_BATCH_SIZE_BYTES) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Batch too large. Maximum total upload size is ${MAX_BATCH_SIZE_MB}MB.`,
-          },
-          { status: 400 }
-        );
-      }
     }
 
     const batchId = createBatchId();

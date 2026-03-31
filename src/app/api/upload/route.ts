@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { sanitizeFolderName } from "@/lib/print-jobs";
+import { getBatchesDir, getUploadsRootDir, sanitizeFolderName } from "@/lib/print-jobs";
 
 export const runtime = "nodejs";
 
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const uploadsDir = path.join(process.cwd(), "uploads");
+    const uploadsDir = getUploadsRootDir();
     await mkdir(uploadsDir, { recursive: true });
 
     const normalizedFolder =
@@ -178,7 +178,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const batchesDir = path.join(uploadsDir, "_batches");
+    const batchesDir = getBatchesDir();
     await mkdir(batchesDir, { recursive: true });
     await writeFile(
       path.join(batchesDir, `${batchId}.json`),
@@ -201,7 +201,14 @@ export async function POST(request: Request) {
       uploadedCount: jobs.length,
       jobs,
     });
-  } catch {
+  } catch (error) {
+    console.error("[api/upload] upload failed", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      cwd: process.cwd(),
+      vercel: process.env.VERCEL === "1",
+    });
+
     return NextResponse.json(
       { success: false, error: "Upload failed due to a server error" },
       { status: 500 }

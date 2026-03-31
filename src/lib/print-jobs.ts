@@ -36,12 +36,28 @@ const TEXT_EXTENSIONS = new Set([".txt", ".md", ".csv", ".json", ".log"]);
 const OFFICE_EXTENSIONS = new Set([".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"]);
 const jobLocks = new Map<string, Promise<void>>();
 
+function resolveBaseUploadsDir() {
+  const configuredPath = process.env.UPLOADS_DIR?.trim();
+
+  if (configuredPath) {
+    return path.isAbsolute(configuredPath)
+      ? configuredPath
+      : path.resolve(process.cwd(), configuredPath);
+  }
+
+  if (process.env.VERCEL === "1") {
+    return path.join("/tmp", "cjnet-print", "uploads");
+  }
+
+  return path.join(process.cwd(), "uploads");
+}
+
 function isValidStatus(value: unknown): value is JobStatus {
   return typeof value === "string" && STATUS_VALUES.includes(value as JobStatus);
 }
 
 function getUploadsDir() {
-  return path.join(process.cwd(), "uploads");
+  return resolveBaseUploadsDir();
 }
 
 function getDoneDir() {
@@ -50,6 +66,10 @@ function getDoneDir() {
 
 export function getUploadsRootDir() {
   return getUploadsDir();
+}
+
+export function getBatchesDir() {
+  return path.join(getUploadsDir(), "_batches");
 }
 
 function getMetadataPath(dir: string, filename: string) {

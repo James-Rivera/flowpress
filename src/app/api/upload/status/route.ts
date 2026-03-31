@@ -1,7 +1,12 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { listDoneJobs, listUploadJobs, sanitizeJobPath } from "@/lib/print-jobs";
+import {
+  getBatchesDir,
+  listDoneJobs,
+  listUploadJobs,
+  sanitizeJobPath,
+} from "@/lib/print-jobs";
 
 export const runtime = "nodejs";
 
@@ -164,8 +169,7 @@ export async function GET(request: Request) {
   };
 
   if (batchParam) {
-    const uploadsDir = path.join(process.cwd(), "uploads");
-    const batchesDir = path.join(uploadsDir, "_batches");
+    const batchesDir = getBatchesDir();
     const manifestPath = path.join(batchesDir, `${batchParam}.json`);
 
     let manifest: BatchManifest | null = null;

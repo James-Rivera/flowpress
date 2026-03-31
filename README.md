@@ -16,6 +16,7 @@ Copy-Item .env.example .env.local
 
 Available variables:
 
+- `UPLOADS_DIR`: optional upload storage root. Relative paths resolve from the project root. If unset, local dev uses `./uploads` and Vercel uses `/tmp/cjnet-print/uploads`
 - `UPLOAD_MAX_FILE_COUNT`: max files accepted per upload batch (server enforcement)
 - `UPLOAD_MAX_FILE_SIZE_MB`: max size per file in MB (server enforcement)
 - `UPLOAD_MAX_BATCH_SIZE_MB`: max total batch size in MB (server enforcement)
@@ -26,6 +27,8 @@ Available variables:
 
 Notes:
 
+- On Vercel, the fallback `/tmp` storage is for demos only and is not persistent across invocations or deployments.
+- For your Linux homelab, set `UPLOADS_DIR` to an absolute path such as `/srv/cjnet-print/uploads`.
 - Keep `NEXT_PUBLIC_*` values aligned with server values so UI messaging matches backend behavior.
 - Restart the dev server after changing `.env.local` values.
 

@@ -981,7 +981,12 @@ export async function readStoredUploadFile(relativePath: string): Promise<Stored
 }
 
 function buildFolderTreeFromPaths(paths: string[]) {
-  const root = new Map<string, { folders: Map<string, unknown>; fileCount: number }>();
+  type MutableFolderTreeNode = {
+    folders: Map<string, MutableFolderTreeNode>;
+    fileCount: number;
+  };
+
+  const root = new Map<string, MutableFolderTreeNode>();
 
   for (const relativePath of paths) {
     const clean = relativePath.replace(/^done\//, "");
@@ -997,10 +1002,11 @@ function buildFolderTreeFromPaths(paths: string[]) {
     for (let index = 0; index < segments.length - 1; index += 1) {
       const segment = segments[index];
       currentPath = currentPath ? `${currentPath}/${segment}` : segment;
-      const existing = current.get(segment) as
-        | { folders: Map<string, unknown>; fileCount: number }
-        | undefined;
-      const node = existing ?? { folders: new Map<string, unknown>(), fileCount: 0 };
+      const existing = current.get(segment);
+      const node: MutableFolderTreeNode = existing ?? {
+        folders: new Map<string, MutableFolderTreeNode>(),
+        fileCount: 0,
+      };
 
       if (index === segments.length - 2) {
         node.fileCount += 1;
@@ -1012,7 +1018,7 @@ function buildFolderTreeFromPaths(paths: string[]) {
   }
 
   const toNodes = (
-    source: Map<string, { folders: Map<string, unknown>; fileCount: number }>,
+    source: Map<string, MutableFolderTreeNode>,
     parentPath = ""
   ): FolderNode[] =>
     Array.from(source.entries())
@@ -1022,10 +1028,7 @@ function buildFolderTreeFromPaths(paths: string[]) {
         return {
           name,
           path: nextPath,
-          folders: toNodes(
-            value.folders as Map<string, { folders: Map<string, unknown>; fileCount: number }>,
-            nextPath
-          ),
+          folders: toNodes(value.folders, nextPath),
           fileCount: value.fileCount,
         };
       })

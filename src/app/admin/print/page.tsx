@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -25,7 +25,7 @@ function getFileKind(fileName: string): FileKind {
   return "other";
 }
 
-export default function AdminPrintPage() {
+function AdminPrintPageContent() {
   const searchParams = useSearchParams();
   const [autoPrintAttempted, setAutoPrintAttempted] = useState(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -133,5 +133,23 @@ export default function AdminPrintPage() {
         )}
       </section>
     </main>
+  );
+}
+
+function PrintPageFallback() {
+  return (
+    <main className="min-h-screen bg-[#F7F7F8] p-4 sm:p-6">
+      <section className="mx-auto w-full max-w-5xl rounded-2xl border border-[#E5E7EB] bg-white p-6 text-sm text-[#6B7280] shadow-sm">
+        Loading print preview...
+      </section>
+    </main>
+  );
+}
+
+export default function AdminPrintPage() {
+  return (
+    <Suspense fallback={<PrintPageFallback />}>
+      <AdminPrintPageContent />
+    </Suspense>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type QueueStatus = "pending" | "printing" | "done" | "missing";
@@ -60,7 +60,7 @@ function statusClass(status: QueueStatus) {
   return "border-[#E5E7EB] bg-white";
 }
 
-export default function UploadTrackPage() {
+function UploadTrackPageContent() {
   const searchParams = useSearchParams();
   const batchId = (searchParams.get("batch") ?? "").trim();
 
@@ -324,5 +324,23 @@ export default function UploadTrackPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+function UploadTrackFallback() {
+  return (
+    <main className="min-h-screen bg-[#F7F7F8] px-4 py-6 sm:px-6 sm:py-8">
+      <section className="mx-auto w-full max-w-2xl rounded-2xl border border-[#E5E7EB] bg-white p-6 text-sm text-[#6B7280] shadow-sm">
+        Loading queue status...
+      </section>
+    </main>
+  );
+}
+
+export default function UploadTrackPage() {
+  return (
+    <Suspense fallback={<UploadTrackFallback />}>
+      <UploadTrackPageContent />
+    </Suspense>
   );
 }

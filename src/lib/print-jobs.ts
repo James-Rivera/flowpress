@@ -102,7 +102,7 @@ async function writeMetadata(metadataPath: string, metadata: JobMetadata) {
 
 async function withJobLock<T>(jobPath: string, action: () => Promise<T>) {
   const previous = jobLocks.get(jobPath) ?? Promise.resolve();
-  let release: (() => void) | null = null;
+  let release: () => void = () => {};
 
   const current = new Promise<void>((resolve) => {
     release = resolve;
@@ -114,7 +114,7 @@ async function withJobLock<T>(jobPath: string, action: () => Promise<T>) {
   try {
     return await action();
   } finally {
-    release?.();
+    release();
 
     if (jobLocks.get(jobPath) === current) {
       jobLocks.delete(jobPath);

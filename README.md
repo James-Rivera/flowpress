@@ -16,7 +16,10 @@ Copy-Item .env.example .env.local
 
 Available variables:
 
-- `UPLOADS_DIR`: optional upload storage root. Relative paths resolve from the project root. If unset, local dev uses `./uploads` and Vercel uses `/tmp/cjnet-print/uploads`
+- `STORAGE_DRIVER`: optional override. Use `filesystem` for local disk or `blob` for Vercel Blob. If unset, the app uses Blob when `BLOB_READ_WRITE_TOKEN` exists, otherwise filesystem
+- `UPLOADS_DIR`: optional upload storage root for filesystem mode. Relative paths resolve from the project root
+- `BLOB_PATH_PREFIX`: optional prefix used for Blob object paths. Defaults to `cjnet-print`
+- `BLOB_READ_WRITE_TOKEN`: required for blob mode. This is usually added automatically by a Vercel Blob store
 - `UPLOAD_MAX_FILE_COUNT`: max files accepted per upload batch (server enforcement)
 - `UPLOAD_MAX_FILE_SIZE_MB`: max size per file in MB (server enforcement)
 - `UPLOAD_MAX_BATCH_SIZE_MB`: max total batch size in MB (server enforcement)
@@ -27,8 +30,9 @@ Available variables:
 
 Notes:
 
-- On Vercel, the fallback `/tmp` storage is for demos only and is not persistent across invocations or deployments.
-- For your Linux homelab, set `UPLOADS_DIR` to an absolute path such as `/srv/cjnet-print/uploads`.
+- For Vercel, create a Blob store and make sure `BLOB_READ_WRITE_TOKEN` is present in production. That gives you shared storage for uploads, metadata, and batch manifests.
+- For your Linux homelab, use filesystem mode and set `UPLOADS_DIR` to an absolute path such as `/srv/cjnet-print/uploads`.
+- You can force the mode explicitly with `STORAGE_DRIVER=filesystem` or `STORAGE_DRIVER=blob` if needed.
 - Keep `NEXT_PUBLIC_*` values aligned with server values so UI messaging matches backend behavior.
 - Restart the dev server after changing `.env.local` values.
 

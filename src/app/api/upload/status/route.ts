@@ -1,8 +1,6 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { NextResponse } from "next/server";
 import {
-  getBatchesDir,
+  getBatchManifest,
   listDoneJobs,
   listUploadJobs,
   sanitizeJobPath,
@@ -41,17 +39,6 @@ type StatusItem = {
   queueAhead: number | null;
   filename?: string;
   updatedAt: number;
-};
-
-type BatchManifest = {
-  batchId: string;
-  createdAt: number;
-  name: string;
-  jobs: Array<{
-    filename: string;
-    relativePath: string;
-    status: "pending";
-  }>;
 };
 
 function sanitizeBatchId(batchId: string) {
@@ -169,15 +156,9 @@ export async function GET(request: Request) {
   };
 
   if (batchParam) {
-    const batchesDir = getBatchesDir();
-    const manifestPath = path.join(batchesDir, `${batchParam}.json`);
+    const manifest = await getBatchManifest(batchParam);
 
-    let manifest: BatchManifest | null = null;
-
-    try {
-      const text = await readFile(manifestPath, "utf-8");
-      manifest = JSON.parse(text) as BatchManifest;
-    } catch {
+    if (!manifest) {
       return NextResponse.json(
         {
           success: false,

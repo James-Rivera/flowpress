@@ -8,6 +8,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
+import { BlobNotFoundError, BlobPreconditionFailedError, copy, del, get, head, list, put } from "@vercel/blob";
 
 export type JobStatus = "pending" | "printing" | "done";
 export type JobBucket = "active" | "done";
@@ -30,11 +31,58 @@ export type PrintJob = {
   metadata: JobMetadata;
 };
 
+export type BatchManifest = {
+  batchId: string;
+  createdAt: number;
+  name: string;
+  jobs: Array<{
+    filename: string;
+    relativePath: string;
+    status: "pending";
+  }>;
+};
+
+export type StoredFileResult = {
+  body: Buffer | ReadableStream<Uint8Array>;
+  fileName: string;
+  mimeType: string;
+};
+
+type FolderNode = {
+  name: string;
+  path: string;
+  folders: FolderNode[];
+  fileCount: number;
+};
+
+type StorageDriver = "filesystem" | "blob";
+
 const STATUS_VALUES: JobStatus[] = ["pending", "printing", "done"];
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
 const TEXT_EXTENSIONS = new Set([".txt", ".md", ".csv", ".json", ".log"]);
 const OFFICE_EXTENSIONS = new Set([".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"]);
 const jobLocks = new Map<string, Promise<void>>();
+const DEFAULT_BLOB_PREFIX = "cjnet-print";
+
+function getStorageDriver(): StorageDriver {
+  const configured = process.env.STORAGE_DRIVER?.trim().toLowerCase();
+
+  if (configured === "filesystem" || configured === "blob") {
+    return configured;
+  }
+
+  if (process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
+    return "blob";
+  }
+
+  return "filesystem";
+}
+
+function getBlobPrefix() {
+  const configured = process.env.BLOB_PATH_PREFIX?.trim();
+  const prefix = configured || DEFAULT_BLOB_PREFIX;
+  return prefix.replace(/^\/+|\/+$/g, "");
+}
 
 function resolveBaseUploadsDir() {
   const configuredPath = process.env.UPLOADS_DIR?.trim();
@@ -42,18 +90,10 @@ function resolveBaseUploadsDir() {
   if (configuredPath) {
     return path.isAbsolute(configuredPath)
       ? configuredPath
-      : path.resolve(process.cwd(), configuredPath);
+      : path.resolve(/* turbopackIgnore: true */ process.cwd(), configuredPath);
   }
 
-  if (process.env.VERCEL === "1") {
-    return path.join("/tmp", "cjnet-print", "uploads");
-  }
-
-  return path.join(process.cwd(), "uploads");
-}
-
-function isValidStatus(value: unknown): value is JobStatus {
-  return typeof value === "string" && STATUS_VALUES.includes(value as JobStatus);
+  return path.join(/* turbopackIgnore: true */ process.cwd(), "uploads");
 }
 
 function getUploadsDir() {
@@ -74,6 +114,33 @@ export function getBatchesDir() {
 
 function getMetadataPath(dir: string, filename: string) {
   return path.join(dir, `${filename}.json`);
+}
+
+function getBlobFilePath(bucket: JobBucket, relativePath: string) {
+  const cleanRelativePath = sanitizeJobPath(
+    bucket === "done" ? relativePath.replace(/^done\//, "") : relativePath
+  );
+
+  return `${getBlobPrefix()}/files/${bucket}/${cleanRelativePath}`;
+}
+
+function getBlobMetadataPath(bucket: JobBucket, relativePath: string) {
+  const cleanRelativePath = sanitizeJobPath(
+    bucket === "done" ? relativePath.replace(/^done\//, "") : relativePath
+  );
+
+  return `${getBlobPrefix()}/metadata/${bucket}/${cleanRelativePath}.json`;
+}
+
+function getBlobBatchPath(batchId: string) {
+  return `${getBlobPrefix()}/batches/${batchId}.json`;
+}
+
+function extractRelativePathFromBlobPath(pathname: string, bucket: JobBucket) {
+  const prefix = `${getBlobPrefix()}/files/${bucket}/`;
+  const relativePath = pathname.startsWith(prefix) ? pathname.slice(prefix.length) : pathname;
+
+  return bucket === "done" ? `done/${relativePath}` : relativePath;
 }
 
 function extractTimestamp(filename: string, fallback: number) {
@@ -120,6 +187,125 @@ async function writeMetadata(metadataPath: string, metadata: JobMetadata) {
   await writeFile(metadataPath, JSON.stringify(metadata, null, 2), "utf-8");
 }
 
+async function blobText(pathname: string) {
+  try {
+    const result = await get(pathname, { access: "private", useCache: false });
+
+    if (!result || result.statusCode !== 200) {
+      return null;
+    }
+
+    return await new Response(result.stream).text();
+  } catch (error) {
+    if (error instanceof BlobNotFoundError) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+async function putPrivateJson(pathname: string, payload: unknown, ifMatch?: string) {
+  await put(pathname, JSON.stringify(payload, null, 2), {
+    access: "private",
+    allowOverwrite: true,
+    addRandomSuffix: false,
+    contentType: "application/json; charset=utf-8",
+    ...(ifMatch ? { ifMatch } : {}),
+  });
+}
+
+async function listAllBlobs(prefix: string) {
+  const blobs: Awaited<ReturnType<typeof list>>["blobs"] = [];
+  let cursor: string | undefined;
+
+  do {
+    const response = await list({ prefix, cursor, limit: 1000 });
+    blobs.push(...response.blobs);
+    cursor = response.hasMore ? response.cursor : undefined;
+  } while (cursor);
+
+  return blobs;
+}
+
+async function readBlobMetadata(
+  bucket: JobBucket,
+  relativePath: string
+): Promise<{ metadata: JobMetadata; etag: string | null }> {
+  const metadataPath = getBlobMetadataPath(bucket, relativePath);
+  const text = await blobText(metadataPath);
+
+  if (!text) {
+    return { metadata: normalizeMetadata({}), etag: null };
+  }
+
+  try {
+    const metadataHead = await head(metadataPath);
+    return {
+      metadata: normalizeMetadata(JSON.parse(text) as unknown),
+      etag: metadataHead.etag,
+    };
+  } catch (error) {
+    if (error instanceof BlobNotFoundError) {
+      return { metadata: normalizeMetadata(JSON.parse(text) as unknown), etag: null };
+    }
+
+    throw error;
+  }
+}
+
+async function listBlobJobs(bucket: JobBucket): Promise<PrintJob[]> {
+  const prefix = `${getBlobPrefix()}/files/${bucket}/`;
+  const blobs = await listAllBlobs(prefix);
+  const jobs = await Promise.all(
+    blobs.map(async (blob) => {
+      const relativePath = extractRelativePathFromBlobPath(blob.pathname, bucket);
+      const fileName = relativePath.split("/").pop() ?? "file";
+      const metadataResult = await readBlobMetadata(bucket, relativePath);
+
+      return {
+        filename: fileName,
+        timestamp: extractTimestamp(fileName, blob.uploadedAt.getTime()),
+        bucket,
+        relativePath,
+        metadata: metadataResult.metadata,
+      } satisfies PrintJob;
+    })
+  );
+
+  return jobs.sort((a, b) => a.timestamp - b.timestamp);
+}
+
+async function getBlobJob(bucket: JobBucket, relativePath: string): Promise<PrintJob | null> {
+  const cleanRelativePath =
+    bucket === "done" ? sanitizeJobPath(relativePath).replace(/^done\//, "") : sanitizeJobPath(relativePath);
+
+  if (!cleanRelativePath) {
+    return null;
+  }
+
+  try {
+    const blobPath = getBlobFilePath(bucket, cleanRelativePath);
+    const blobHead = await head(blobPath);
+    const metadataResult = await readBlobMetadata(bucket, cleanRelativePath);
+    const fileName = cleanRelativePath.split("/").pop() ?? "file";
+
+    return {
+      filename: fileName,
+      timestamp: extractTimestamp(fileName, blobHead.uploadedAt.getTime()),
+      bucket,
+      relativePath: bucket === "done" ? `done/${cleanRelativePath}` : cleanRelativePath,
+      metadata: metadataResult.metadata,
+    };
+  } catch (error) {
+    if (error instanceof BlobNotFoundError) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
 async function withJobLock<T>(jobPath: string, action: () => Promise<T>) {
   const previous = jobLocks.get(jobPath) ?? Promise.resolve();
   let release: () => void = () => {};
@@ -140,6 +326,10 @@ async function withJobLock<T>(jobPath: string, action: () => Promise<T>) {
       jobLocks.delete(jobPath);
     }
   }
+}
+
+function isValidStatus(value: unknown): value is JobStatus {
+  return typeof value === "string" && STATUS_VALUES.includes(value as JobStatus);
 }
 
 export function sanitizeFilename(filename: string) {
@@ -222,6 +412,10 @@ export function getMimeType(filename: string) {
   if (extension === ".xlsx") {
     return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   }
+  if (extension === ".ppt") return "application/vnd.ms-powerpoint";
+  if (extension === ".pptx") {
+    return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+  }
 
   return "application/octet-stream";
 }
@@ -266,7 +460,9 @@ async function listJobsInDirectory(
         filename: entry.name,
         timestamp: extractTimestamp(entry.name, stats.mtimeMs),
         bucket,
-        relativePath: relativePrefix ? `${relativePrefix}/${entry.name}` : entry.name,
+        relativePath: relativePrefix
+          ? `${relativePrefix}/${entry.name}`
+          : entry.name,
         metadata,
       });
     }
@@ -278,10 +474,18 @@ async function listJobsInDirectory(
 }
 
 export async function listUploadJobs(): Promise<PrintJob[]> {
+  if (getStorageDriver() === "blob") {
+    return listBlobJobs("active");
+  }
+
   return listJobsInDirectory(getUploadsDir(), "active");
 }
 
 export async function listDoneJobs(): Promise<PrintJob[]> {
+  if (getStorageDriver() === "blob") {
+    return listBlobJobs("done");
+  }
+
   return listJobsInDirectory(getDoneDir(), "done", "done");
 }
 
@@ -290,6 +494,10 @@ export async function getUploadJob(filename: string): Promise<PrintJob | null> {
 
   if (!safeRelativePath || safeRelativePath.startsWith("done/")) {
     return null;
+  }
+
+  if (getStorageDriver() === "blob") {
+    return getBlobJob("active", safeRelativePath);
   }
 
   const uploadsDir = getUploadsDir();
@@ -361,6 +569,37 @@ export async function setUploadJobStatusWithTransitions(
     return false;
   }
 
+  if (getStorageDriver() === "blob") {
+    return withJobLock(safeRelativePath, async () => {
+      const currentJob = await getBlobJob("active", safeRelativePath);
+
+      if (!currentJob) {
+        return false;
+      }
+
+      const metadataResult = await readBlobMetadata("active", safeRelativePath);
+
+      if (!allowedFrom.includes(metadataResult.metadata.status)) {
+        return false;
+      }
+
+      try {
+        await putPrivateJson(
+          getBlobMetadataPath("active", safeRelativePath),
+          { ...metadataResult.metadata, status },
+          metadataResult.etag ?? undefined
+        );
+        return true;
+      } catch (error) {
+        if (error instanceof BlobPreconditionFailedError) {
+          return false;
+        }
+
+        throw error;
+      }
+    });
+  }
+
   return withJobLock(safeRelativePath, async () => {
     const uploadsDir = getUploadsDir();
     const filePath = path.join(uploadsDir, safeRelativePath);
@@ -388,6 +627,43 @@ export async function moveUploadJobToDone(filename: string, expectedStatus?: Job
 
   if (!safeRelativePath || safeRelativePath.startsWith("done/")) {
     return false;
+  }
+
+  if (getStorageDriver() === "blob") {
+    return withJobLock(safeRelativePath, async () => {
+      const currentJob = await getBlobJob("active", safeRelativePath);
+
+      if (!currentJob) {
+        return false;
+      }
+
+      const metadataResult = await readBlobMetadata("active", safeRelativePath);
+
+      if (expectedStatus && metadataResult.metadata.status !== expectedStatus) {
+        return false;
+      }
+
+      const fileName = safeRelativePath.split("/").pop() ?? "file";
+      const activeFilePath = getBlobFilePath("active", safeRelativePath);
+      const doneFilePath = getBlobFilePath("done", safeRelativePath);
+
+      await copy(activeFilePath, doneFilePath, {
+        access: "private",
+        allowOverwrite: true,
+        addRandomSuffix: false,
+        contentType: getMimeType(fileName),
+      });
+      await putPrivateJson(getBlobMetadataPath("done", safeRelativePath), {
+        ...metadataResult.metadata,
+        status: "done",
+      });
+      await del([
+        activeFilePath,
+        getBlobMetadataPath("active", safeRelativePath),
+      ]);
+
+      return true;
+    });
   }
 
   return withJobLock(safeRelativePath, async () => {
@@ -433,6 +709,38 @@ export async function moveDoneJobToPending(filename: string) {
     return false;
   }
 
+  if (getStorageDriver() === "blob") {
+    return withJobLock(`done/${safeRelativePath}`, async () => {
+      const currentJob = await getBlobJob("done", safeRelativePath);
+
+      if (!currentJob) {
+        return false;
+      }
+
+      const metadataResult = await readBlobMetadata("done", safeRelativePath);
+      const fileName = safeRelativePath.split("/").pop() ?? "file";
+      const doneFilePath = getBlobFilePath("done", safeRelativePath);
+      const activeFilePath = getBlobFilePath("active", safeRelativePath);
+
+      await copy(doneFilePath, activeFilePath, {
+        access: "private",
+        allowOverwrite: true,
+        addRandomSuffix: false,
+        contentType: getMimeType(fileName),
+      });
+      await putPrivateJson(getBlobMetadataPath("active", safeRelativePath), {
+        ...metadataResult.metadata,
+        status: "pending",
+      });
+      await del([
+        doneFilePath,
+        getBlobMetadataPath("done", safeRelativePath),
+      ]);
+
+      return true;
+    });
+  }
+
   const uploadsDir = getUploadsDir();
   const doneDir = getDoneDir();
   const doneFilePath = path.join(doneDir, safeRelativePath);
@@ -462,32 +770,269 @@ export async function moveDoneJobToPending(filename: string) {
   return true;
 }
 
-export function resolveUploadsRelativePath(relativePath: string) {
-  const uploadsRoot = getUploadsRootDir();
+export async function getBatchManifest(batchId: string): Promise<BatchManifest | null> {
+  const safeBatchId = batchId.replace(/[^a-zA-Z0-9_-]/g, "");
+
+  if (!safeBatchId) {
+    return null;
+  }
+
+  if (getStorageDriver() === "blob") {
+    const text = await blobText(getBlobBatchPath(safeBatchId));
+
+    if (!text) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(text) as BatchManifest;
+    } catch {
+      return null;
+    }
+  }
+
+  const manifestPath = path.join(getBatchesDir(), `${safeBatchId}.json`);
+
+  try {
+    const text = await readFile(manifestPath, "utf-8");
+    return JSON.parse(text) as BatchManifest;
+  } catch {
+    return null;
+  }
+}
+
+export async function storeUploadedBatch({
+  batchId,
+  customerName,
+  size,
+  copies,
+  color,
+  folder,
+  files,
+}: {
+  batchId: string;
+  customerName: string;
+  size: string;
+  copies: string;
+  color: string;
+  folder: string;
+  files: File[];
+}) {
+  const normalizedFolder = sanitizeFolderName(folder);
+  const jobs: BatchManifest["jobs"] = [];
+
+  if (getStorageDriver() === "blob") {
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      const safeOriginalName = file.name
+        .replace(/\\/g, "")
+        .replace(/\//g, "")
+        .replace(/\s+/g, "_")
+        .replace(/[^a-zA-Z0-9._-]/g, "");
+      const originalName = safeOriginalName || "upload.bin";
+      const uniqueFileName = `${Date.now()}-${batchId}-${index}-${originalName}`;
+      const relativePath = `${normalizedFolder}/${uniqueFileName}`;
+
+      await put(getBlobFilePath("active", relativePath), file, {
+        access: "private",
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: file.type || getMimeType(originalName),
+        multipart: file.size > 5 * 1024 * 1024,
+      });
+      await putPrivateJson(getBlobMetadataPath("active", relativePath), {
+        name: customerName,
+        size: size || String(file.size),
+        copies,
+        color,
+        folder: normalizedFolder,
+        batchId,
+        originalFilename: originalName,
+        status: "pending",
+      });
+
+      jobs.push({
+        filename: originalName,
+        relativePath,
+        status: "pending",
+      });
+    }
+
+    await putPrivateJson(getBlobBatchPath(batchId), {
+      batchId,
+      createdAt: Date.now(),
+      name: customerName,
+      jobs,
+    } satisfies BatchManifest);
+
+    return { jobs, normalizedFolder };
+  }
+
+  const uploadsDir = getUploadsDir();
+  await mkdir(uploadsDir, { recursive: true });
+  const targetFolderPath = path.join(uploadsDir, normalizedFolder);
+  await mkdir(targetFolderPath, { recursive: true });
+
+  for (let index = 0; index < files.length; index += 1) {
+    const file = files[index];
+    const safeOriginalName = file.name
+      .replace(/\\/g, "")
+      .replace(/\//g, "")
+      .replace(/\s+/g, "_")
+      .replace(/[^a-zA-Z0-9._-]/g, "");
+    const originalName = safeOriginalName || "upload.bin";
+    const uniqueFileName = `${Date.now()}-${batchId}-${index}-${originalName}`;
+    const savePath = path.join(targetFolderPath, uniqueFileName);
+    const metadataPath = path.join(targetFolderPath, `${uniqueFileName}.json`);
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    await writeFile(savePath, buffer);
+    await writeMetadata(metadataPath, {
+      name: customerName,
+      size: size || String(file.size),
+      copies,
+      color,
+      folder: normalizedFolder,
+      status: "pending",
+    });
+
+    jobs.push({
+      filename: originalName,
+      relativePath: `${normalizedFolder}/${uniqueFileName}`,
+      status: "pending",
+    });
+  }
+
+  const batchesDir = getBatchesDir();
+  await mkdir(batchesDir, { recursive: true });
+  await writeFile(
+    path.join(batchesDir, `${batchId}.json`),
+    JSON.stringify(
+      {
+        batchId,
+        createdAt: Date.now(),
+        name: customerName,
+        jobs,
+      } satisfies BatchManifest,
+      null,
+      2
+    ),
+    "utf-8"
+  );
+
+  return { jobs, normalizedFolder };
+}
+
+export async function readStoredUploadFile(relativePath: string): Promise<StoredFileResult | null> {
   const normalizedRelativePath = sanitizeJobPath(relativePath);
 
   if (!normalizedRelativePath) {
     return null;
   }
 
+  const bucket: JobBucket = normalizedRelativePath.startsWith("done/") ? "done" : "active";
+  const cleanRelativePath =
+    bucket === "done" ? normalizedRelativePath.replace(/^done\//, "") : normalizedRelativePath;
+  const fileName = cleanRelativePath.split("/").pop() ?? "file";
+  const mimeType = getMimeType(fileName);
+
+  if (getStorageDriver() === "blob") {
+    try {
+      const result = await get(getBlobFilePath(bucket, cleanRelativePath), {
+        access: "private",
+        useCache: false,
+      });
+
+      if (!result || result.statusCode !== 200) {
+        return null;
+      }
+
+      return {
+        body: result.stream,
+        fileName,
+        mimeType,
+      };
+    } catch (error) {
+      if (error instanceof BlobNotFoundError) {
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
+  const uploadsRoot = getUploadsRootDir();
   const absolutePath = path.resolve(uploadsRoot, normalizedRelativePath);
 
   if (!absolutePath.startsWith(path.resolve(uploadsRoot))) {
     return null;
   }
 
-  return {
-    absolutePath,
-    normalizedRelativePath,
-  };
+  try {
+    const buffer = await readFile(absolutePath);
+    return {
+      body: buffer,
+      fileName,
+      mimeType,
+    };
+  } catch {
+    return null;
+  }
 }
 
-type FolderNode = {
-  name: string;
-  path: string;
-  folders: FolderNode[];
-  fileCount: number;
-};
+function buildFolderTreeFromPaths(paths: string[]) {
+  const root = new Map<string, { folders: Map<string, unknown>; fileCount: number }>();
+
+  for (const relativePath of paths) {
+    const clean = relativePath.replace(/^done\//, "");
+    const segments = clean.split("/").filter(Boolean);
+
+    if (segments.length <= 1) {
+      continue;
+    }
+
+    let current = root;
+    let currentPath = "";
+
+    for (let index = 0; index < segments.length - 1; index += 1) {
+      const segment = segments[index];
+      currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+      const existing = current.get(segment) as
+        | { folders: Map<string, unknown>; fileCount: number }
+        | undefined;
+      const node = existing ?? { folders: new Map<string, unknown>(), fileCount: 0 };
+
+      if (index === segments.length - 2) {
+        node.fileCount += 1;
+      }
+
+      current.set(segment, node);
+      current = node.folders;
+    }
+  }
+
+  const toNodes = (
+    source: Map<string, { folders: Map<string, unknown>; fileCount: number }>,
+    parentPath = ""
+  ): FolderNode[] =>
+    Array.from(source.entries())
+      .map(([name, value]) => {
+        const nextPath = parentPath ? `${parentPath}/${name}` : name;
+
+        return {
+          name,
+          path: nextPath,
+          folders: toNodes(
+            value.folders as Map<string, { folders: Map<string, unknown>; fileCount: number }>,
+            nextPath
+          ),
+          fileCount: value.fileCount,
+        };
+      })
+      .sort((a, b) => a.path.localeCompare(b.path));
+
+  return toNodes(root);
+}
 
 async function buildFolderNodeTree(baseDir: string, relativePath = ""): Promise<FolderNode[]> {
   const nodes: FolderNode[] = [];
@@ -529,6 +1074,11 @@ async function buildFolderNodeTree(baseDir: string, relativePath = ""): Promise<
 }
 
 export async function getFolderTree(view: "queue" | "done") {
+  if (getStorageDriver() === "blob") {
+    const jobs = view === "done" ? await listDoneJobs() : await listUploadJobs();
+    return buildFolderTreeFromPaths(jobs.map((job) => job.relativePath));
+  }
+
   const root = view === "done" ? getDoneDir() : getUploadsDir();
   return buildFolderNodeTree(root);
 }

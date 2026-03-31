@@ -1,8 +1,6 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
-import path from "node:path";
 import { NextResponse } from "next/server";
-import { getBatchesDir, getUploadsRootDir, sanitizeFolderName } from "@/lib/print-jobs";
+import { storeUploadedBatch } from "@/lib/print-jobs";
 
 export const runtime = "nodejs";
 
@@ -126,74 +124,16 @@ export async function POST(request: Request) {
       }
     }
 
-    const uploadsDir = getUploadsRootDir();
-    await mkdir(uploadsDir, { recursive: true });
-
-    const normalizedFolder =
-      typeof folder === "string" ? sanitizeFolderName(folder) : "General";
-    const targetFolderPath = path.join(uploadsDir, normalizedFolder);
-    await mkdir(targetFolderPath, { recursive: true });
     const batchId = createBatchId();
-
-    const jobs: Array<{
-      filename: string;
-      relativePath: string;
-      status: "pending";
-    }> = [];
-
-    for (let index = 0; index < uploadedFiles.length; index += 1) {
-      const file = uploadedFiles[index];
-
-      const safeOriginalName = file.name
-        .replace(/\\/g, "")
-        .replace(/\//g, "")
-        .replace(/\s+/g, "_")
-        .replace(/[^a-zA-Z0-9._-]/g, "");
-
-      const originalName = safeOriginalName || "upload.bin";
-      const uniqueFileName = `${Date.now()}-${batchId}-${index}-${originalName}`;
-      const savePath = path.join(targetFolderPath, uniqueFileName);
-      const metadataPath = path.join(targetFolderPath, `${uniqueFileName}.json`);
-
-      const buffer = Buffer.from(await file.arrayBuffer());
-      await writeFile(savePath, buffer);
-
-      const metadata = {
-        name: typeof name === "string" ? name : "",
-        size: typeof size === "string" && size ? size : String(file.size),
-        copies: typeof copies === "string" ? copies : "",
-        color: typeof color === "string" ? color : "",
-        folder: normalizedFolder,
-        batchId,
-        originalFilename: originalName,
-        status: "pending",
-      };
-
-      await writeFile(metadataPath, JSON.stringify(metadata, null, 2), "utf-8");
-
-      jobs.push({
-        filename: originalName,
-        relativePath: `${normalizedFolder}/${uniqueFileName}`,
-        status: "pending",
-      });
-    }
-
-    const batchesDir = getBatchesDir();
-    await mkdir(batchesDir, { recursive: true });
-    await writeFile(
-      path.join(batchesDir, `${batchId}.json`),
-      JSON.stringify(
-        {
-          batchId,
-          createdAt: Date.now(),
-          name: typeof name === "string" ? name : "",
-          jobs,
-        },
-        null,
-        2
-      ),
-      "utf-8"
-    );
+    const { jobs } = await storeUploadedBatch({
+      batchId,
+      customerName: typeof name === "string" ? name : "",
+      size: typeof size === "string" && size ? size : "",
+      copies: typeof copies === "string" ? copies : "",
+      color: typeof color === "string" ? color : "",
+      folder: typeof folder === "string" ? folder : "General",
+      files: uploadedFiles,
+    });
 
     return NextResponse.json({
       success: true,

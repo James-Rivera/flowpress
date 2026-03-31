@@ -1,17 +1,25 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[#F7F7F8] px-4 py-8 sm:py-12">
-      <section className="mx-auto w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-6 text-center shadow-sm sm:p-7">
-        <span className="inline-flex rounded-full bg-[#F4D400]/20 px-3 py-1 text-xs font-semibold text-[#111827]">
-          CJ NET Printing
-        </span>
+    <main className="min-h-screen bg-[#F7F7F8] px-4 py-6 sm:py-10">
+      <section className="mx-auto w-full max-w-[460px] rounded-3xl border border-[#E5E7EB] bg-white p-6 text-center shadow-[0_10px_24px_rgba(17,24,39,0.08)] sm:p-7">
+        <div className="mx-auto mb-5 flex w-full max-w-[136px] items-center justify-center">
+          <Image
+            src="/logo.svg"
+            alt="CJ NET shop logo"
+            width={360}
+            height={120}
+            className="h-auto w-full"
+            priority
+          />
+        </div>
 
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#111827] sm:text-4xl">
+        <h1 className="text-[2.15rem] font-bold tracking-tight text-[#111827] sm:text-[2.35rem]">
           Fast File Submission
         </h1>
-        <p className="mt-2 text-sm text-[#6B7280] sm:text-base">
+        <p className="mt-3 text-[1.05rem] text-[#6B7280]">
           Send your print request in a few taps.
         </p>
 
@@ -20,20 +28,20 @@ export default function Home() {
             href="https://m.me/cjnetvalley"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex w-full items-center justify-center rounded-xl bg-[#F4D400] px-4 py-3 text-base font-semibold text-[#111827] hover:bg-[#e3c400]"
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-[#F4D400] px-4 py-3.5 text-lg font-bold text-[#111827] transition-colors hover:bg-[#e3c400] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-2"
           >
             Send via Messenger
           </a>
 
           <Link
             href="/upload"
-            className="inline-flex w-full items-center justify-center rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-base font-semibold text-[#111827] hover:bg-[#F7F7F8]"
+            className="inline-flex w-full items-center justify-center rounded-2xl border border-[#D1D5DB] bg-white px-4 py-3.5 text-lg font-semibold text-[#111827] transition-colors hover:bg-[#F7F7F8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-2"
           >
             Upload File
           </Link>
         </div>
 
-        <details className="mt-5 rounded-xl border border-[#E5E7EB] bg-[#F7F7F8] p-3 text-left">
+        <details className="mt-5 rounded-2xl border border-[#E5E7EB] bg-[#F7F7F8] p-3 text-left">
           <summary className="cursor-pointer text-sm font-semibold text-[#111827]">Need help?</summary>
           <p className="mt-2 text-sm text-[#6B7280]">Show this page to staff and they will assist you.</p>
         </details>

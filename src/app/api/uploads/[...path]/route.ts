@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdminRequestAuthenticated } from "@/lib/admin-auth";
+import { ensureAdminRequestAuthenticated } from "@/lib/admin-route";
 import { readStoredUploadFile } from "@/lib/print-jobs";
 
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ path: string[] }> }
 ) {
-  if (!isAdminRequestAuthenticated(request)) {
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+  const unauthenticatedResponse = ensureAdminRequestAuthenticated(request);
+
+  if (unauthenticatedResponse) {
+    return unauthenticatedResponse;
   }
 
   const { path } = await context.params;

@@ -1,41 +1,24 @@
 "use client";
 
-import { useMemo } from "react";
+import { encodePathSegments, getFileKind, isPreviewSupported } from "@/lib/file-types";
 
 type PreviewPanelProps = {
   title: string;
   relativePath: string;
 };
 
-function getFileKind(fileName: string) {
-  const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
-
-  if (extension === "pdf") return "pdf";
-  if (["jpg", "jpeg", "png", "gif", "webp"].includes(extension)) return "image";
-  if (["txt", "md", "csv", "json", "log"].includes(extension)) return "text";
-  if (["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(extension)) {
-    return "office";
-  }
-
-  return "other";
-}
-
 export default function PreviewPanel({
   title,
   relativePath,
 }: PreviewPanelProps) {
-  const kind = useMemo(() => getFileKind(title), [title]);
-  const encodedPath = relativePath
-    .split("/")
-    .filter(Boolean)
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
+  const kind = getFileKind(title);
+  const encodedPath = encodePathSegments(relativePath);
   const sourceUrl = `/api/uploads/${encodedPath}`;
   const downloadUrl = `/api/uploads/${encodedPath}?download=1`;
   const printUrl = `/admin/print?path=${encodeURIComponent(relativePath)}`;
   const directPrintUrl = sourceUrl;
   const preferredPrintUrl = kind === "image" || kind === "pdf" ? directPrintUrl : printUrl;
-  const canPreview = kind === "pdf" || kind === "image" || kind === "text";
+  const canPreview = isPreviewSupported(title);
 
   return (
     <aside className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">

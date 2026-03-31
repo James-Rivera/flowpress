@@ -1,7 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import {
-  isAdminRequestAuthenticated,
-} from "@/lib/admin-auth";
+import { NextRequest } from "next/server";
+import { ensureAdminRequestAuthenticated, redirectWithAdminNotice } from "@/lib/admin-route";
 import {
   getUploadJob,
   moveUploadJobToDone,
@@ -9,39 +7,11 @@ import {
   sanitizeJobPath,
 } from "@/lib/print-jobs";
 
-function isSafeAdminReturnPath(value: string) {
-  if (!value || value.startsWith("//") || /[\r\n]/.test(value)) {
-    return false;
-  }
-
-  if (!value.startsWith("/admin")) {
-    return false;
-  }
-
-  try {
-    const parsed = new URL(value, "http://localhost");
-    return parsed.pathname.startsWith("/admin");
-  } catch {
-    return false;
-  }
-}
-
-function redirectWithNotice(
-  request: NextRequest,
-  returnTo: string,
-  notice: string,
-  tone: "success" | "error"
-) {
-  const safePath = isSafeAdminReturnPath(returnTo) ? returnTo : "/admin";
-  const url = new URL(safePath, request.url);
-  url.searchParams.set("notice", notice);
-  url.searchParams.set("tone", tone);
-  return NextResponse.redirect(url);
-}
-
 export async function POST(request: NextRequest) {
-  if (!isAdminRequestAuthenticated(request)) {
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+  const unauthenticatedResponse = ensureAdminRequestAuthenticated(request);
+
+  if (unauthenticatedResponse) {
+    return unauthenticatedResponse;
   }
 
   const formData = await request.formData();
@@ -55,13 +25,13 @@ export async function POST(request: NextRequest) {
       : true;
 
   if (!jobPath) {
-    return redirectWithNotice(request, returnTo, "Missing job path", "error");
+    return redirectWithAdminNotice(request, returnTo, "Missing job path", "error");
   }
 
   const job = await getUploadJob(jobPath);
 
   if (!job || job.metadata.status !== "printing") {
-    return redirectWithNotice(
+    return redirectWithAdminNotice(
       request,
       returnTo,
       "Only printing jobs can be marked done",
@@ -72,17 +42,17 @@ export async function POST(request: NextRequest) {
   const moved = await moveUploadJobToDone(jobPath, "printing");
 
   if (!moved) {
-    return redirectWithNotice(request, returnTo, "Failed to complete job", "error");
+    return redirectWithAdminNotice(request, returnTo, "Failed to complete job", "error");
   }
 
   if (!autoAdvanceEnabled) {
-    return redirectWithNotice(request, returnTo, "Job marked done", "success");
+    return redirectWithAdminNotice(request, returnTo, "Job marked done", "success");
   }
 
   const promotedJobPath = await promoteNextPendingJobToPrinting();
 
   if (promotedJobPath) {
-    return redirectWithNotice(
+    return redirectWithAdminNotice(
       request,
       returnTo,
       "Job marked done. Next pending job is now printing.",
@@ -90,5 +60,5 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return redirectWithNotice(request, returnTo, "Job marked done", "success");
+  return redirectWithAdminNotice(request, returnTo, "Job marked done", "success");
 }

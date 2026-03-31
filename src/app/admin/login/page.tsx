@@ -28,14 +28,20 @@ export default function AdminLoginPage() {
         body: JSON.stringify({ username, password }),
       });
 
+      const payload = (await response.json()) as { error?: string };
+
       if (!response.ok) {
-        throw new Error("Invalid credentials");
+        throw new Error(payload.error || "Invalid credentials");
       }
 
       router.push("/admin");
       router.refresh();
-    } catch {
-      setErrorMessage("Invalid staff login. Check username and password, then try again.");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Invalid staff login. Check username and password, then try again.";
+      setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
     }

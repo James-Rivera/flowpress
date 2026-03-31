@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { isAdminRequestAuthenticated } from "@/lib/admin-auth";
+import { NextRequest } from "next/server";
+import { ensureAdminRequestAuthenticated, redirectWithAdminNotice } from "@/lib/admin-route";
 import {
   getUploadJob,
   hasOtherPrintingJob,
@@ -7,39 +7,11 @@ import {
   setUploadJobStatusWithTransitions,
 } from "@/lib/print-jobs";
 
-function isSafeAdminReturnPath(value: string) {
-  if (!value || value.startsWith("//") || /[\r\n]/.test(value)) {
-    return false;
-  }
-
-  if (!value.startsWith("/admin")) {
-    return false;
-  }
-
-  try {
-    const parsed = new URL(value, "http://localhost");
-    return parsed.pathname.startsWith("/admin");
-  } catch {
-    return false;
-  }
-}
-
-function redirectWithNotice(
-  request: NextRequest,
-  returnTo: string,
-  notice: string,
-  tone: "success" | "error"
-) {
-  const safePath = isSafeAdminReturnPath(returnTo) ? returnTo : "/admin";
-  const url = new URL(safePath, request.url);
-  url.searchParams.set("notice", notice);
-  url.searchParams.set("tone", tone);
-  return NextResponse.redirect(url);
-}
-
 export async function POST(request: NextRequest) {
-  if (!isAdminRequestAuthenticated(request)) {
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+  const unauthenticatedResponse = ensureAdminRequestAuthenticated(request);
+
+  if (unauthenticatedResponse) {
+    return unauthenticatedResponse;
   }
 
   const formData = await request.formData();
@@ -48,13 +20,13 @@ export async function POST(request: NextRequest) {
   const returnTo = typeof formData.get("returnTo") === "string" ? String(formData.get("returnTo")) : "/admin";
 
   if (!jobPath) {
-    return redirectWithNotice(request, returnTo, "Missing job path", "error");
+    return redirectWithAdminNotice(request, returnTo, "Missing job path", "error");
   }
 
   const targetJob = await getUploadJob(jobPath);
 
   if (!targetJob || targetJob.metadata.status !== "pending") {
-    return redirectWithNotice(
+    return redirectWithAdminNotice(
       request,
       returnTo,
       "Only pending jobs can start printing",
@@ -65,7 +37,7 @@ export async function POST(request: NextRequest) {
   const hasAnotherPrinting = await hasOtherPrintingJob(jobPath);
 
   if (hasAnotherPrinting) {
-    return redirectWithNotice(
+    return redirectWithAdminNotice(
       request,
       returnTo,
       "Another job is already printing",
@@ -76,7 +48,7 @@ export async function POST(request: NextRequest) {
   const updated = await setUploadJobStatusWithTransitions(jobPath, "printing", ["pending"]);
 
   if (!updated) {
-    return redirectWithNotice(
+    return redirectWithAdminNotice(
       request,
       returnTo,
       "Job status changed before update. Please refresh and try again.",
@@ -84,5 +56,5 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return redirectWithNotice(request, returnTo, "Job moved to printing", "success");
+  return redirectWithAdminNotice(request, returnTo, "Job moved to printing", "success");
 }

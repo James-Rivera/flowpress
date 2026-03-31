@@ -20,8 +20,12 @@ export async function GET(
 
   const isDownload = request.nextUrl.searchParams.get("download") === "1";
   const disposition = isDownload ? "attachment" : "inline";
+  const responseBody =
+    storedFile.body instanceof ReadableStream
+      ? storedFile.body
+      : new Uint8Array(storedFile.body);
 
-  return new NextResponse(storedFile.body, {
+  return new NextResponse(responseBody, {
     status: 200,
     headers: {
       "Content-Type": storedFile.mimeType,

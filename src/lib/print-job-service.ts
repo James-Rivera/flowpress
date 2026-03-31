@@ -1,4 +1,4 @@
-import { listDoneJobs, listUploadJobs, setUploadJobStatusWithTransitions } from "@/lib/print-jobs";
+import { listDoneJobs, listUploadJobs, setUploadJobStatusWithTransitions } from "@/lib/print-job-repository";
 import type { JobStatus, PrintJob } from "@/lib/print-job-types";
 
 const STATUS_VALUES: JobStatus[] = ["pending", "printing", "done"];

@@ -34,6 +34,7 @@ const STATUS_VALUES: JobStatus[] = ["pending", "printing", "done"];
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
 const TEXT_EXTENSIONS = new Set([".txt", ".md", ".csv", ".json", ".log"]);
 const OFFICE_EXTENSIONS = new Set([".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"]);
+const jobLocks = new Map<string, Promise<void>>();
 
 function isValidStatus(value: unknown): value is JobStatus {
   return typeof value === "string" && STATUS_VALUES.includes(value as JobStatus);
@@ -97,6 +98,28 @@ async function readMetadata(metadataPath: string): Promise<JobMetadata> {
 
 async function writeMetadata(metadataPath: string, metadata: JobMetadata) {
   await writeFile(metadataPath, JSON.stringify(metadata, null, 2), "utf-8");
+}
+
+async function withJobLock<T>(jobPath: string, action: () => Promise<T>) {
+  const previous = jobLocks.get(jobPath) ?? Promise.resolve();
+  let release: (() => void) | null = null;
+
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  jobLocks.set(jobPath, previous.then(() => current));
+  await previous;
+
+  try {
+    return await action();
+  } finally {
+    release?.();
+
+    if (jobLocks.get(jobPath) === current) {
+      jobLocks.delete(jobPath);
+    }
+  }
 }
 
 export function sanitizeFilename(filename: string) {
@@ -279,64 +302,108 @@ export async function hasOtherPrintingJob(currentFilename: string) {
   );
 }
 
-export async function setUploadJobStatus(filename: string, status: JobStatus) {
-  const safeRelativePath = sanitizeJobPath(filename);
+export async function promoteNextPendingJobToPrinting() {
+  const jobs = await listUploadJobs();
 
-  if (!safeRelativePath || safeRelativePath.startsWith("done/")) {
-    return false;
+  if (jobs.some((job) => job.metadata.status === "printing")) {
+    return null;
   }
 
-  const uploadsDir = getUploadsDir();
-  const filePath = path.join(uploadsDir, safeRelativePath);
+  const pendingJobs = jobs.filter((job) => job.metadata.status === "pending");
 
-  if (!(await fileExists(filePath))) {
-    return false;
+  for (const pendingJob of pendingJobs) {
+    const promoted = await setUploadJobStatusWithTransitions(
+      pendingJob.relativePath,
+      "printing",
+      ["pending"]
+    );
+
+    if (promoted) {
+      return pendingJob.relativePath;
+    }
   }
 
-  const fileDir = path.dirname(filePath);
-  const fileName = path.basename(filePath);
-  const metadataPath = getMetadataPath(fileDir, fileName);
-  const currentMetadata = await readMetadata(metadataPath);
-
-  await writeMetadata(metadataPath, { ...currentMetadata, status });
-  return true;
+  return null;
 }
 
-export async function moveUploadJobToDone(filename: string) {
+export async function setUploadJobStatus(filename: string, status: JobStatus) {
+  return setUploadJobStatusWithTransitions(filename, status, STATUS_VALUES);
+}
+
+export async function setUploadJobStatusWithTransitions(
+  filename: string,
+  status: JobStatus,
+  allowedFrom: JobStatus[]
+) {
   const safeRelativePath = sanitizeJobPath(filename);
 
   if (!safeRelativePath || safeRelativePath.startsWith("done/")) {
     return false;
   }
 
-  const uploadsDir = getUploadsDir();
-  const doneDir = getDoneDir();
-  const sourceFilePath = path.join(uploadsDir, safeRelativePath);
+  return withJobLock(safeRelativePath, async () => {
+    const uploadsDir = getUploadsDir();
+    const filePath = path.join(uploadsDir, safeRelativePath);
 
-  if (!(await fileExists(sourceFilePath))) {
+    if (!(await fileExists(filePath))) {
+      return false;
+    }
+
+    const fileDir = path.dirname(filePath);
+    const fileName = path.basename(filePath);
+    const metadataPath = getMetadataPath(fileDir, fileName);
+    const currentMetadata = await readMetadata(metadataPath);
+
+    if (!allowedFrom.includes(currentMetadata.status)) {
+      return false;
+    }
+
+    await writeMetadata(metadataPath, { ...currentMetadata, status });
+    return true;
+  });
+}
+
+export async function moveUploadJobToDone(filename: string, expectedStatus?: JobStatus) {
+  const safeRelativePath = sanitizeJobPath(filename);
+
+  if (!safeRelativePath || safeRelativePath.startsWith("done/")) {
     return false;
   }
 
-  const relativeDir = path.dirname(safeRelativePath);
-  const fileName = path.basename(safeRelativePath);
-  const targetDir =
-    relativeDir && relativeDir !== "." ? path.join(doneDir, relativeDir) : doneDir;
+  return withJobLock(safeRelativePath, async () => {
+    const uploadsDir = getUploadsDir();
+    const doneDir = getDoneDir();
+    const sourceFilePath = path.join(uploadsDir, safeRelativePath);
 
-  await mkdir(targetDir, { recursive: true });
+    if (!(await fileExists(sourceFilePath))) {
+      return false;
+    }
 
-  const sourceDir = path.dirname(sourceFilePath);
-  const sourceMetadataPath = getMetadataPath(sourceDir, fileName);
-  const doneMetadataPath = getMetadataPath(targetDir, fileName);
-  const metadata = await readMetadata(sourceMetadataPath);
+    const relativeDir = path.dirname(safeRelativePath);
+    const fileName = path.basename(safeRelativePath);
+    const targetDir =
+      relativeDir && relativeDir !== "." ? path.join(doneDir, relativeDir) : doneDir;
 
-  await rename(sourceFilePath, path.join(targetDir, fileName));
+    await mkdir(targetDir, { recursive: true });
 
-  if (await fileExists(sourceMetadataPath)) {
-    await rename(sourceMetadataPath, doneMetadataPath);
-  }
+    const sourceDir = path.dirname(sourceFilePath);
+    const sourceMetadataPath = getMetadataPath(sourceDir, fileName);
+    const doneMetadataPath = getMetadataPath(targetDir, fileName);
+    const metadata = await readMetadata(sourceMetadataPath);
 
-  await writeMetadata(doneMetadataPath, { ...metadata, status: "done" });
-  return true;
+    if (expectedStatus && metadata.status !== expectedStatus) {
+      return false;
+    }
+
+    await rename(sourceFilePath, path.join(targetDir, fileName));
+
+    if (await fileExists(sourceMetadataPath)) {
+      await rename(sourceMetadataPath, doneMetadataPath);
+    }
+
+    await writeMetadata(doneMetadataPath, { ...metadata, status: "done" });
+    return true;
+  });
 }
 
 export async function moveDoneJobToPending(filename: string) {

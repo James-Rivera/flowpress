@@ -2,6 +2,8 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import ConfirmActionForm from "@/app/admin/_components/confirm-action-form";
+import LiveAutoRefresh from "@/app/admin/_components/live-auto-refresh";
+import NoticeToast from "@/app/admin/_components/notice-toast";
 import PreviewPanel from "@/app/admin/_components/preview-panel";
 import { ADMIN_SESSION_COOKIE, getAdminSessionToken } from "@/lib/admin-auth";
 import { listDoneJobs, listUploadJobs, type PrintJob } from "@/lib/print-jobs";
@@ -12,6 +14,7 @@ type AdminSearchParams = {
   view?: string;
   folder?: string;
   preview?: string;
+  autoAdvance?: string;
   notice?: string;
   tone?: string;
 };
@@ -39,11 +42,35 @@ function getJobFolder(relativePath: string) {
 
 function buildPreviewHref(
   view: "queue" | "done",
-  relativePath: string
+  relativePath: string,
+  autoAdvanceEnabled: boolean
 ) {
   const params = new URLSearchParams();
   params.set("view", view);
   params.set("preview", relativePath);
+
+  if (!autoAdvanceEnabled) {
+    params.set("autoAdvance", "off");
+  }
+
+  return `/admin?${params.toString()}`;
+}
+
+function buildViewHref(
+  view: "queue" | "done",
+  preview: string,
+  autoAdvanceEnabled: boolean
+) {
+  const params = new URLSearchParams();
+  params.set("view", view);
+
+  if (preview) {
+    params.set("preview", preview);
+  }
+
+  if (!autoAdvanceEnabled) {
+    params.set("autoAdvance", "off");
+  }
 
   return `/admin?${params.toString()}`;
 }
@@ -83,7 +110,8 @@ function buildPreferredPrintHref(relativePath: string, fileName: string) {
 
 function buildReturnTo(
   view: "queue" | "done",
-  preview?: string
+  preview: string | undefined,
+  autoAdvanceEnabled: boolean
 ) {
   const params = new URLSearchParams();
   params.set("view", view);
@@ -92,23 +120,21 @@ function buildReturnTo(
     params.set("preview", preview);
   }
 
-  return `/admin?${params.toString()}`;
-}
-
-function getToastStyle(tone: string) {
-  if (tone === "error") {
-    return "border-[#E53935]/30 bg-[#E53935]/10 text-[#111827]";
+  if (!autoAdvanceEnabled) {
+    params.set("autoAdvance", "off");
   }
 
-  return "border-[#F4D400]/40 bg-[#fff9d6] text-[#111827]";
+  return `/admin?${params.toString()}`;
 }
 
 function QueueItem({
   job,
   returnTo,
+  autoAdvanceEnabled,
 }: {
   job: PrintJob;
   returnTo: string;
+  autoAdvanceEnabled: boolean;
 }) {
   return (
     <article className="rounded-xl border border-[#E5E7EB] bg-white p-4">
@@ -124,7 +150,7 @@ function QueueItem({
 
         <div className="flex flex-col gap-2 sm:flex-row">
           <Link
-            href={buildPreviewHref("queue", job.relativePath)}
+            href={buildPreviewHref("queue", job.relativePath, autoAdvanceEnabled)}
             className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:bg-[#F7F7F8]"
           >
             Preview
@@ -133,7 +159,6 @@ function QueueItem({
             action="/api/admin/start-printing"
             jobPath={job.relativePath}
             returnTo={returnTo}
-            confirmMessage="Confirm start printing this job now?"
             buttonLabel="Start Printing"
             buttonClassName="rounded-xl bg-[#F4D400] px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#e3c400]"
           />
@@ -158,6 +183,7 @@ export default async function AdminPage({
   const params = await searchParams;
   const view = getSearchParam(params.view) === "done" ? "done" : "queue";
   const selectedPreview = getSearchParam(params.preview);
+  const autoAdvanceEnabled = getSearchParam(params.autoAdvance) !== "off";
   const notice = getSearchParam(params.notice);
   const tone = getSearchParam(params.tone);
 
@@ -169,30 +195,35 @@ export default async function AdminPage({
   const previewPool = view === "done" ? doneJobs : [...activeJobs, ...doneJobs];
   const previewJob = previewPool.find((job) => job.relativePath === selectedPreview) ?? nowPrinting;
 
-  const queueReturnTo = buildReturnTo("queue", previewJob?.relativePath);
-  const doneReturnTo = buildReturnTo("done", previewJob?.relativePath);
+  const queueReturnTo = buildReturnTo("queue", previewJob?.relativePath, autoAdvanceEnabled);
+  const doneReturnTo = buildReturnTo("done", previewJob?.relativePath, autoAdvanceEnabled);
 
   return (
     <main className="min-h-screen bg-[#F7F7F8] px-4 py-6 lg:px-8">
-      {notice ? (
-        <div className="pointer-events-none fixed right-5 top-5 z-50">
-          <div
-            className={`pointer-events-auto rounded-xl border px-4 py-3 text-sm font-medium shadow-lg ${getToastStyle(tone)}`}
-          >
-            {notice}
-          </div>
-        </div>
-      ) : null}
+      <LiveAutoRefresh />
+      {notice ? <NoticeToast notice={notice} tone={tone} /> : null}
 
       <section className="mx-auto w-full max-w-[1400px] space-y-5">
         <header className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-          <h1 className="text-3xl font-semibold tracking-tight text-[#111827]">CJ NET Print Ops</h1>
-          <p className="mt-2 text-sm text-[#6B7280]">
-            Process print jobs in order, track active work, and update status without losing queue flow.
-          </p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-semibold tracking-tight text-[#111827]">CJ NET Print Ops</h1>
+              <p className="mt-2 text-sm text-[#6B7280]">
+                Process print jobs in order, track active work, and update status without losing queue flow.
+              </p>
+            </div>
+            <form action="/api/admin/logout?returnTo=/admin/login" method="post">
+              <button
+                type="submit"
+                className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#F7F7F8]"
+              >
+                Log Out
+              </button>
+            </form>
+          </div>
           <div className="mt-4 flex gap-2 sm:gap-3">
           <Link
-            href={`/admin?view=queue${selectedPreview ? `&preview=${encodeURIComponent(selectedPreview)}` : ""}`}
+            href={buildViewHref("queue", selectedPreview, autoAdvanceEnabled)}
             className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
               view === "queue"
                 ? "border-b-2 border-[#F4D400] bg-transparent text-[#111827]"
@@ -202,7 +233,7 @@ export default async function AdminPage({
             Pending
           </Link>
           <Link
-            href={`/admin?view=done${selectedPreview ? `&preview=${encodeURIComponent(selectedPreview)}` : ""}`}
+            href={buildViewHref("done", selectedPreview, autoAdvanceEnabled)}
             className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
               view === "done"
                 ? "border-b-2 border-[#F4D400] bg-transparent text-[#111827]"
@@ -211,6 +242,29 @@ export default async function AdminPage({
           >
             Done
           </Link>
+          <div className="ml-auto flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white p-1">
+            <span className="px-2 text-xs font-semibold uppercase tracking-wide text-[#6B7280]">Auto-Advance</span>
+            <Link
+              href={buildViewHref(view, selectedPreview, true)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                autoAdvanceEnabled
+                  ? "bg-[#F4D400] text-[#111827]"
+                  : "text-[#6B7280] hover:bg-[#F7F7F8]"
+              }`}
+            >
+              On
+            </Link>
+            <Link
+              href={buildViewHref(view, selectedPreview, false)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                !autoAdvanceEnabled
+                  ? "bg-[#111827] text-white"
+                  : "text-[#6B7280] hover:bg-[#F7F7F8]"
+              }`}
+            >
+              Off
+            </Link>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -241,7 +295,7 @@ export default async function AdminPage({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="rounded-full bg-[#F4D400] px-3 py-1 text-xs font-semibold text-[#111827]">Printing</p>
                       <Link
-                        href={buildPreviewHref("queue", nowPrinting.relativePath)}
+                        href={buildPreviewHref("queue", nowPrinting.relativePath, autoAdvanceEnabled)}
                         className="text-sm font-medium text-[#111827] underline-offset-2 hover:underline"
                       >
                         Open Preview
@@ -272,7 +326,7 @@ export default async function AdminPage({
                         action="/api/admin/mark-done"
                         jobPath={nowPrinting.relativePath}
                         returnTo={queueReturnTo}
-                        confirmMessage="Confirm this job has finished printing and should be marked done?"
+                        hiddenFields={{ autoAdvance: autoAdvanceEnabled ? "on" : "off" }}
                         buttonLabel="Done Printing"
                         buttonClassName="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#F7F7F8]"
                       />
@@ -307,6 +361,7 @@ export default async function AdminPage({
                         key={job.relativePath}
                         job={job}
                         returnTo={queueReturnTo}
+                        autoAdvanceEnabled={autoAdvanceEnabled}
                       />
                     ))}
                   </div>
@@ -339,7 +394,7 @@ export default async function AdminPage({
 
                           <div className="flex flex-col gap-2 sm:flex-row">
                             <Link
-                              href={buildPreviewHref("done", job.relativePath)}
+                              href={buildPreviewHref("done", job.relativePath, autoAdvanceEnabled)}
                               className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:bg-[#F7F7F8]"
                             >
                               Preview

@@ -4,7 +4,7 @@ import {
   getUploadJob,
   hasOtherPrintingJob,
   sanitizeJobPath,
-  setUploadJobStatus,
+  setUploadJobStatusWithTransitions,
 } from "@/lib/print-jobs";
 
 function isSafeAdminReturnPath(value: string) {
@@ -73,6 +73,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await setUploadJobStatus(jobPath, "printing");
+  const updated = await setUploadJobStatusWithTransitions(jobPath, "printing", ["pending"]);
+
+  if (!updated) {
+    return redirectWithNotice(
+      request,
+      returnTo,
+      "Job status changed before update. Please refresh and try again.",
+      "error"
+    );
+  }
+
   return redirectWithNotice(request, returnTo, "Job moved to printing", "success");
 }

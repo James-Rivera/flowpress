@@ -1,5 +1,34 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Environment Configuration
+
+Copy `.env.example` to `.env.local` and adjust values as needed.
+
+```bash
+cp .env.example .env.local
+```
+
+On Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env.local
+```
+
+Available variables:
+
+- `UPLOAD_MAX_FILE_COUNT`: max files accepted per upload batch (server enforcement)
+- `UPLOAD_MAX_FILE_SIZE_MB`: max size per file in MB (server enforcement)
+- `UPLOAD_MAX_BATCH_SIZE_MB`: max total batch size in MB (server enforcement)
+- `NEXT_PUBLIC_UPLOAD_MAX_FILE_COUNT`: client-side limit shown/validated in UI
+- `NEXT_PUBLIC_UPLOAD_MAX_FILE_SIZE_MB`: client-side per-file size shown/validated in UI
+- `NEXT_PUBLIC_UPLOAD_MAX_BATCH_SIZE_MB`: client-side batch size shown/validated in UI
+- `BATCH_STATUS_LOOKUP_LIMIT_PER_HOUR`: max batch status checks per client per hour
+
+Notes:
+
+- Keep `NEXT_PUBLIC_*` values aligned with server values so UI messaging matches backend behavior.
+- Restart the dev server after changing `.env.local` values.
+
 ## Getting Started
 
 First, run the development server:

@@ -5,6 +5,28 @@ import { listDoneJobs, listUploadJobs, sanitizeJobPath } from "@/lib/print-jobs"
 
 export const runtime = "nodejs";
 
+function getPositiveIntFromEnv(name: string, fallback: number) {
+  const rawValue = process.env[name];
+
+  if (!rawValue) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+const BATCH_LOOKUP_LIMIT_PER_HOUR = getPositiveIntFromEnv(
+  "BATCH_STATUS_LOOKUP_LIMIT_PER_HOUR",
+  120
+);
+const BATCH_LOOKUP_WINDOW_MS = 60 * 60 * 1000;
+const batchLookupTracker = new Map<string, { count: number; windowStartedAt: number }>();
+
 type StatusValue = "pending" | "printing" | "done" | "missing";
 
 type StatusItem = {
@@ -31,6 +53,32 @@ function sanitizeBatchId(batchId: string) {
   return batchId.replace(/[^a-zA-Z0-9_-]/g, "");
 }
 
+function getClientKey(request: Request) {
+  const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  const fallback = "unknown-client";
+  return forwardedFor || realIp || fallback;
+}
+
+function isBatchLookupRateLimited(request: Request) {
+  const now = Date.now();
+  const key = getClientKey(request);
+  const current = batchLookupTracker.get(key);
+
+  if (!current || now - current.windowStartedAt > BATCH_LOOKUP_WINDOW_MS) {
+    batchLookupTracker.set(key, { count: 1, windowStartedAt: now });
+    return false;
+  }
+
+  if (current.count >= BATCH_LOOKUP_LIMIT_PER_HOUR) {
+    return true;
+  }
+
+  current.count += 1;
+  batchLookupTracker.set(key, current);
+  return false;
+}
+
 function summarize(items: StatusItem[]) {
   return {
     pendingCount: items.filter((item) => item.status === "pending").length,
@@ -55,6 +103,18 @@ export async function GET(request: Request) {
     .filter(Boolean);
 
   const uniquePaths = Array.from(new Set(requestedPaths));
+
+  if (batchParam && isBatchLookupRateLimited(request)) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many status checks. Please wait and try again.",
+        summary: { pendingCount: 0, printingCount: 0, doneCount: 0 },
+        jobs: [],
+      },
+      { status: 429 }
+    );
+  }
 
   const [activeJobs, doneJobs] = await Promise.all([listUploadJobs(), listDoneJobs()]);
   const pendingQueue = activeJobs.filter((job) => job.metadata.status === "pending");

@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   isAdminRequestAuthenticated,
 } from "@/lib/admin-auth";
-import { getUploadJob, moveUploadJobToDone, sanitizeJobPath } from "@/lib/print-jobs";
+import {
+  getUploadJob,
+  moveUploadJobToDone,
+  promoteNextPendingJobToPrinting,
+  sanitizeJobPath,
+} from "@/lib/print-jobs";
 
 function isSafeAdminReturnPath(value: string) {
   if (!value || value.startsWith("//") || /[\r\n]/.test(value)) {
@@ -43,6 +48,11 @@ export async function POST(request: NextRequest) {
   const rawJobPath = formData.get("jobPath") ?? formData.get("filename");
   const jobPath = typeof rawJobPath === "string" ? sanitizeJobPath(rawJobPath) : "";
   const returnTo = typeof formData.get("returnTo") === "string" ? String(formData.get("returnTo")) : "/admin";
+  const autoAdvanceRaw = formData.get("autoAdvance");
+  const autoAdvanceEnabled =
+    typeof autoAdvanceRaw === "string"
+      ? autoAdvanceRaw.toLowerCase() !== "off"
+      : true;
 
   if (!jobPath) {
     return redirectWithNotice(request, returnTo, "Missing job path", "error");
@@ -59,10 +69,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const moved = await moveUploadJobToDone(jobPath);
+  const moved = await moveUploadJobToDone(jobPath, "printing");
 
   if (!moved) {
     return redirectWithNotice(request, returnTo, "Failed to complete job", "error");
+  }
+
+  if (!autoAdvanceEnabled) {
+    return redirectWithNotice(request, returnTo, "Job marked done", "success");
+  }
+
+  const promotedJobPath = await promoteNextPendingJobToPrinting();
+
+  if (promotedJobPath) {
+    return redirectWithNotice(
+      request,
+      returnTo,
+      "Job marked done. Next pending job is now printing.",
+      "success"
+    );
   }
 
   return redirectWithNotice(request, returnTo, "Job marked done", "success");

@@ -7,6 +7,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { BlobNotFoundError, BlobPreconditionFailedError, copy, del, get, head, list, put } from "@vercel/blob";
 
@@ -78,6 +79,10 @@ function getStorageDriver(): StorageDriver {
   return "filesystem";
 }
 
+export function getActiveStorageDriver(): StorageDriver {
+  return getStorageDriver();
+}
+
 function getBlobPrefix() {
   const configured = process.env.BLOB_PATH_PREFIX?.trim();
   const prefix = configured || DEFAULT_BLOB_PREFIX;
@@ -91,6 +96,10 @@ function resolveBaseUploadsDir() {
     return path.isAbsolute(configuredPath)
       ? configuredPath
       : path.resolve(/* turbopackIgnore: true */ process.cwd(), configuredPath);
+  }
+
+  if (process.env.VERCEL === "1") {
+    return path.join(os.tmpdir(), "cjnet-print", "uploads");
   }
 
   return path.join(/* turbopackIgnore: true */ process.cwd(), "uploads");

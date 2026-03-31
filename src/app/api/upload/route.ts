@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { storeUploadedBatch } from "@/lib/print-jobs";
+import { getActiveStorageDriver, getUploadsRootDir, storeUploadedBatch } from "@/lib/print-jobs";
 
 export const runtime = "nodejs";
 
@@ -148,6 +148,11 @@ export async function POST(request: Request) {
       stack: error instanceof Error ? error.stack : undefined,
       cwd: process.cwd(),
       vercel: process.env.VERCEL === "1",
+      storageDriver: getActiveStorageDriver(),
+      uploadsDir: getUploadsRootDir(),
+      hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim()),
+      configuredStorageDriver: process.env.STORAGE_DRIVER ?? null,
+      configuredUploadsDir: process.env.UPLOADS_DIR ?? null,
     });
 
     return NextResponse.json(

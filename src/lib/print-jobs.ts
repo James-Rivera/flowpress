@@ -83,6 +83,14 @@ export function getActiveStorageDriver(): StorageDriver {
   return getStorageDriver();
 }
 
+export function getStorageSetupError() {
+  if (process.env.VERCEL === "1" && getStorageDriver() !== "blob") {
+    return "Vercel uploads require Blob storage. Connect a Vercel Blob store and set BLOB_READ_WRITE_TOKEN.";
+  }
+
+  return null;
+}
+
 function getBlobPrefix() {
   const configured = process.env.BLOB_PATH_PREFIX?.trim();
   const prefix = configured || DEFAULT_BLOB_PREFIX;

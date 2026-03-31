@@ -1,7 +1,12 @@
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { getActiveStorageDriver, getUploadsRootDir, storeUploadedBatch } from "@/lib/print-jobs";
+import {
+  getActiveStorageDriver,
+  getStorageSetupError,
+  getUploadsRootDir,
+  storeUploadedBatch,
+} from "@/lib/print-jobs";
 
 export const runtime = "nodejs";
 
@@ -57,6 +62,15 @@ function isFileAllowed(fileName: string) {
 
 export async function POST(request: Request) {
   try {
+    const storageSetupError = getStorageSetupError();
+
+    if (storageSetupError) {
+      return NextResponse.json(
+        { success: false, error: storageSetupError },
+        { status: 503 }
+      );
+    }
+
     const formData = await request.formData();
 
     const uploadedFiles = formData

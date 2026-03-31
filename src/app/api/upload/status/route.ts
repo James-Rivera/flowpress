@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  getStorageSetupError,
   getBatchManifest,
   listDoneJobs,
   listUploadJobs,
@@ -105,6 +106,20 @@ export async function GET(request: Request) {
         jobs: [],
       },
       { status: 429 }
+    );
+  }
+
+  const storageSetupError = getStorageSetupError();
+
+  if (batchParam && storageSetupError) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: storageSetupError,
+        summary: { pendingCount: 0, printingCount: 0, doneCount: 0 },
+        jobs: [],
+      },
+      { status: 503 }
     );
   }
 

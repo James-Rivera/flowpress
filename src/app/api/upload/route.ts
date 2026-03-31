@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import path from "node:path";
 import { NextResponse } from "next/server";
 import { storeUploadedBatch } from "@/lib/print-jobs";
 

@@ -1,33 +1,15 @@
 import { NextResponse } from "next/server";
+import { getBatchLookupLimitPerHour } from "@/lib/upload-rules";
 import {
   getStorageSetupError,
   getBatchManifest,
-  listDoneJobs,
-  listUploadJobs,
   sanitizeJobPath,
 } from "@/lib/print-jobs";
+import { getQueueSnapshot } from "@/lib/print-job-service";
 
 export const runtime = "nodejs";
 
-function getPositiveIntFromEnv(name: string, fallback: number) {
-  const rawValue = process.env[name];
-
-  if (!rawValue) {
-    return fallback;
-  }
-
-  const parsed = Number.parseInt(rawValue, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-
-  return parsed;
-}
-
-const BATCH_LOOKUP_LIMIT_PER_HOUR = getPositiveIntFromEnv(
-  "BATCH_STATUS_LOOKUP_LIMIT_PER_HOUR",
-  120
-);
+const BATCH_LOOKUP_LIMIT_PER_HOUR = getBatchLookupLimitPerHour();
 const BATCH_LOOKUP_WINDOW_MS = 60 * 60 * 1000;
 const batchLookupTracker = new Map<string, { count: number; windowStartedAt: number }>();
 
@@ -123,17 +105,14 @@ export async function GET(request: Request) {
     );
   }
 
-  const [activeJobs, doneJobs] = await Promise.all([listUploadJobs(), listDoneJobs()]);
-  const pendingQueue = activeJobs.filter((job) => job.metadata.status === "pending");
+  const snapshot = await getQueueSnapshot();
 
   const resolveStatus = (relativePath: string, fallbackFilename?: string): StatusItem => {
-    const activeJob = activeJobs.find((job) => job.relativePath === relativePath);
+    const activeJob = snapshot.activeJobsByPath.get(relativePath);
 
     if (activeJob) {
       const isPending = activeJob.metadata.status === "pending";
-      const pendingIndex = pendingQueue.findIndex(
-        (job) => job.relativePath === activeJob.relativePath
-      );
+      const pendingIndex = snapshot.pendingPositions.get(activeJob.relativePath) ?? -1;
 
       return {
         relativePath,
@@ -145,9 +124,7 @@ export async function GET(request: Request) {
       };
     }
 
-    const doneJob = doneJobs.find(
-      (job) => job.relativePath === relativePath || job.relativePath === `done/${relativePath}`
-    );
+    const doneJob = snapshot.doneJobsByPath.get(relativePath);
 
     if (doneJob) {
       return {
@@ -202,9 +179,9 @@ export async function GET(request: Request) {
 
   const jobs = uniquePaths.map((relativePath) => resolveStatus(relativePath));
   const summary = {
-    pendingCount: pendingQueue.length,
-    printingCount: activeJobs.filter((job) => job.metadata.status === "printing").length,
-    doneCount: doneJobs.length,
+    pendingCount: snapshot.pendingJobs.length,
+    printingCount: snapshot.nowPrinting ? 1 : 0,
+    doneCount: snapshot.doneJobs.length,
   };
 
   return NextResponse.json({

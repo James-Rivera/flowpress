@@ -1,4 +1,10 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CJ NET Printing System
+
+Simple QR-based file submission for a printing shop:
+
+- customers upload files without signing in
+- staff manually confirm and process print jobs
+- uploads can be stored on the local filesystem or in Vercel Blob
 
 ## Environment Configuration
 
@@ -20,6 +26,9 @@ Available variables:
 - `UPLOADS_DIR`: optional upload storage root for filesystem mode. Relative paths resolve from the project root
 - `BLOB_PATH_PREFIX`: optional prefix used for Blob object paths. Defaults to `cjnet-print`
 - `BLOB_READ_WRITE_TOKEN`: required for blob mode. This is usually added automatically by a Vercel Blob store
+- `ADMIN_USERNAME`: staff login username. Required in production
+- `ADMIN_PASSWORD`: staff login password. Required in production
+- `ADMIN_SESSION_SECRET`: secret used to sign admin session cookies. Required in production
 - `UPLOAD_MAX_FILE_COUNT`: max files accepted per upload batch (server enforcement)
 - `UPLOAD_MAX_FILE_SIZE_MB`: max size per file in MB (server enforcement)
 - `UPLOAD_MAX_BATCH_SIZE_MB`: max total batch size in MB (server enforcement)
@@ -33,40 +42,45 @@ Notes:
 - For Vercel, create a Blob store and make sure `BLOB_READ_WRITE_TOKEN` is present in production. That gives you shared storage for uploads, metadata, and batch manifests.
 - For your Linux homelab, use filesystem mode and set `UPLOADS_DIR` to an absolute path such as `/srv/cjnet-print/uploads`.
 - You can force the mode explicitly with `STORAGE_DRIVER=filesystem` or `STORAGE_DRIVER=blob` if needed.
+- In development only, staff auth falls back to `staff` / `cjnet123` and a local default session secret to keep setup simple.
+- In production, admin login intentionally has no fallback values. Set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_SESSION_SECRET`.
 - Keep `NEXT_PUBLIC_*` values aligned with server values so UI messaging matches backend behavior.
 - Restart the dev server after changing `.env.local` values.
 
 ## Getting Started
 
-First, run the development server:
+Install dependencies and run the development server:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Main routes:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `/` landing page
+- `/upload` customer upload flow
+- `/upload/track?batch=...` customer queue tracking
+- `/admin/login` staff login
+- `/admin` staff print dashboard
 
-## Learn More
+## Staff Workflow
 
-To learn more about Next.js, take a look at the following resources:
+1. Customer uploads one or more files.
+2. Files enter the pending queue.
+3. Staff opens the admin dashboard and starts printing manually.
+4. Staff marks the job as done or returns it to pending.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+This keeps the shop workflow simple and avoids accidental auto-printing.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Verification
 
-## Deploy on Vercel
+Run lint checks:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run lint
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+If you deploy to Vercel, connect Blob storage before going live.

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdminRequestAuthenticated } from "@/lib/admin-auth";
+import { ensureAdminRequestAuthenticated } from "@/lib/admin-route";
 import { getFolderTree } from "@/lib/print-jobs";
 
 export async function GET(request: NextRequest) {
-  if (!isAdminRequestAuthenticated(request)) {
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+  const unauthenticatedResponse = ensureAdminRequestAuthenticated(request);
+
+  if (unauthenticatedResponse) {
+    return unauthenticatedResponse;
   }
 
   const view = request.nextUrl.searchParams.get("view") === "done" ? "done" : "queue";

@@ -2,6 +2,7 @@
 
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { getClientUploadLimits, validateUploadFiles } from "@/lib/upload-rules";
 
 type SubmitState = {
   tone: "success" | "error";
@@ -16,55 +17,7 @@ type UploadedJob = {
 
 const SIZE_OPTIONS = ["A4", "Short", "Long"] as const;
 const COLOR_OPTIONS = ["B&W", "Color"] as const;
-
-function getPositiveIntFromEnv(rawValue: string | undefined, fallback: number) {
-  if (!rawValue) {
-    return fallback;
-  }
-
-  const parsed = Number.parseInt(rawValue, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-
-  return parsed;
-}
-
-const ALLOWED_FILE_EXTENSIONS = new Set([
-  ".pdf",
-  ".jpg",
-  ".jpeg",
-  ".png",
-  ".webp",
-  ".doc",
-  ".docx",
-  ".xls",
-  ".xlsx",
-  ".ppt",
-  ".pptx",
-  ".txt",
-  ".csv",
-]);
-const MAX_FILE_COUNT = getPositiveIntFromEnv(
-  process.env.NEXT_PUBLIC_UPLOAD_MAX_FILE_COUNT,
-  20
-);
-const MAX_FILE_SIZE_MB = getPositiveIntFromEnv(
-  process.env.NEXT_PUBLIC_UPLOAD_MAX_FILE_SIZE_MB,
-  100
-);
-const MAX_BATCH_SIZE_MB = getPositiveIntFromEnv(
-  process.env.NEXT_PUBLIC_UPLOAD_MAX_BATCH_SIZE_MB,
-  500
-);
-const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-const MAX_BATCH_SIZE_BYTES = MAX_BATCH_SIZE_MB * 1024 * 1024;
-
-function getFileExtension(fileName: string) {
-  const index = fileName.lastIndexOf(".");
-  if (index === -1) return "";
-  return fileName.slice(index).toLowerCase();
-}
+const UPLOAD_LIMITS = getClientUploadLimits();
 
 function mergeFiles(existing: File[], incoming: File[]) {
   const map = new Map<string, File>();
@@ -78,33 +31,7 @@ function mergeFiles(existing: File[], incoming: File[]) {
 }
 
 function validateFiles(files: File[]) {
-  if (files.length === 0) {
-    return null;
-  }
-
-  if (files.length > MAX_FILE_COUNT) {
-    return `Maximum ${MAX_FILE_COUNT} files per upload.`;
-  }
-
-  let totalBytes = 0;
-  for (const file of files) {
-    const extension = getFileExtension(file.name);
-
-    if (!ALLOWED_FILE_EXTENSIONS.has(extension)) {
-      return `Unsupported file type: ${file.name}. Upload PDF, images, Office files, TXT, or CSV only.`;
-    }
-
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      return `File too large: ${file.name}. Maximum is ${MAX_FILE_SIZE_MB}MB per file.`;
-    }
-
-    totalBytes += file.size;
-    if (totalBytes > MAX_BATCH_SIZE_BYTES) {
-      return `Total upload too large. Maximum is ${MAX_BATCH_SIZE_MB}MB per batch.`;
-    }
-  }
-
-  return null;
+  return validateUploadFiles(files, UPLOAD_LIMITS);
 }
 
 function rememberRecentBatch(batchId: string) {
@@ -323,7 +250,7 @@ export default function UploadPage() {
             <h2 className="text-lg font-semibold text-[#111827]">Choose your files</h2>
             <p className="mt-1 text-sm text-[#6B7280]">Tap to choose files, or drag them here.</p>
             <p className="mt-1 text-xs text-[#6B7280]">
-              Max {MAX_FILE_COUNT} files, up to {MAX_FILE_SIZE_MB}MB each, {MAX_BATCH_SIZE_MB}MB total per batch.
+              Max {UPLOAD_LIMITS.maxFileCount} files, up to {UPLOAD_LIMITS.maxFileSizeMb}MB each, {UPLOAD_LIMITS.maxBatchSizeMb}MB total per batch.
             </p>
 
             <label

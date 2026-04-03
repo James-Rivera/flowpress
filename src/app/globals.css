@@ -8,6 +8,8 @@
   --surface-border: #e5e7eb;
   --brand-yellow: #f4d400;
   --brand-red: #e53935;
+  --font-geist-sans: "Segoe UI", Arial, sans-serif;
+  --font-geist-mono: "Consolas", "Courier New", monospace;
 }
 
 @theme inline {

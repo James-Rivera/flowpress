@@ -59,6 +59,17 @@ export function getAdminSessionMaxAge() {
   return ADMIN_SESSION_TTL_SECONDS;
 }
 
+export function shouldUseSecureAdminCookie(request: Pick<NextRequest, "nextUrl" | "headers">) {
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+  const explicitHttps = request.nextUrl.protocol === "https:";
+
+  if (forwardedProto) {
+    return forwardedProto === "https";
+  }
+
+  return explicitHttps;
+}
+
 export function getAdminAuthConfigurationError() {
   if (getAdminUsername() && getAdminPassword() && getAdminSessionSecret()) {
     return null;

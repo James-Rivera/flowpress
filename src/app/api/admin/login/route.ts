@@ -5,10 +5,11 @@ import {
   getAdminAuthConfigurationError,
   getAdminSessionMaxAge,
   isValidStaffLogin,
+  shouldUseSecureAdminCookie,
 } from "@/lib/admin-auth";
 import { ensureBackendRoute } from "@/lib/role-guards";
 
-export async function POST(request: Request) {
+export async function POST(request: import("next/server").NextRequest) {
   const deniedResponse = ensureBackendRoute();
 
   if (deniedResponse) {
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
       value: createAdminSessionToken(),
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      secure: shouldUseSecureAdminCookie(request),
       path: "/",
       maxAge: getAdminSessionMaxAge(),
     });

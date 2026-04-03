@@ -67,7 +67,7 @@ export function validateUploadFiles(files: UploadableFile[], limits: UploadLimit
     const extension = getFileExtension(file.name);
 
     if (!ALLOWED_FILE_EXTENSIONS.has(extension)) {
-      return `Unsupported file type: ${file.name}. Upload PDF, images, Office files, TXT, or CSV only.`;
+      return `Unsupported file type: ${file.name}. Upload PDF, DOCX, JPG, JPEG, or PNG only.`;
     }
 
     if (file.size > limits.maxFileSizeBytes) {

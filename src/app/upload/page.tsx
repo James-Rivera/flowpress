@@ -2,6 +2,7 @@
 
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { getPublicApiUrl } from "@/lib/public-api";
 import { getClientUploadLimits, validateUploadFiles } from "@/lib/upload-rules";
 
 type SubmitState = {
@@ -158,7 +159,7 @@ export default function UploadPage() {
     formData.set("folder", "General");
 
     try {
-      const response = await fetch("/api/upload", {
+      const response = await fetch(getPublicApiUrl("/api/upload"), {
         method: "POST",
         body: formData,
       });
@@ -282,7 +283,7 @@ export default function UploadPage() {
                   ? `${selectedFiles.length} file(s) selected`
                   : "Tap to choose files"}
               </p>
-              <p className="mt-1 text-xs text-[#6B7280]">PDF, images, DOC/DOCX, XLS/XLSX, PPT/PPTX, TXT, CSV</p>
+              <p className="mt-1 text-xs text-[#6B7280]">PDF, DOCX, JPG, JPEG, PNG</p>
             </label>
 
             {selectedFiles.length > 0 ? (

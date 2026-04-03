@@ -1,11 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getBatchLookupLimitPerHour } from "@/lib/upload-rules";
+import { buildPublicApiOptionsResponse, withPublicApiCors } from "@/lib/public-api-response";
 import {
   getStorageSetupError,
   getBatchManifest,
   sanitizeJobPath,
 } from "@/lib/print-jobs";
 import { getQueueSnapshot } from "@/lib/print-job-service";
+import { ensureBackendRoute } from "@/lib/role-guards";
 
 export const runtime = "nodejs";
 
@@ -62,7 +64,18 @@ function summarize(items: StatusItem[]) {
   };
 }
 
-export async function GET(request: Request) {
+export function OPTIONS(request: NextRequest) {
+  const deniedResponse = ensureBackendRoute();
+  return deniedResponse ?? buildPublicApiOptionsResponse(request);
+}
+
+export async function GET(request: NextRequest) {
+  const deniedResponse = ensureBackendRoute();
+
+  if (deniedResponse) {
+    return deniedResponse;
+  }
+
   const url = new URL(request.url);
   const batchParam = sanitizeBatchId(url.searchParams.get("batch") ?? "");
   const directPaths = url.searchParams.getAll("path");
@@ -80,7 +93,7 @@ export async function GET(request: Request) {
   const uniquePaths = Array.from(new Set(requestedPaths));
 
   if (batchParam && isBatchLookupRateLimited(request)) {
-    return NextResponse.json(
+    return withPublicApiCors(request, NextResponse.json(
       {
         success: false,
         error: "Too many status checks. Please wait and try again.",
@@ -88,13 +101,13 @@ export async function GET(request: Request) {
         jobs: [],
       },
       { status: 429 }
-    );
+    ));
   }
 
   const storageSetupError = getStorageSetupError();
 
   if (batchParam && storageSetupError) {
-    return NextResponse.json(
+    return withPublicApiCors(request, NextResponse.json(
       {
         success: false,
         error: storageSetupError,
@@ -102,7 +115,7 @@ export async function GET(request: Request) {
         jobs: [],
       },
       { status: 503 }
-    );
+    ));
   }
 
   const snapshot = await getQueueSnapshot();
@@ -151,7 +164,7 @@ export async function GET(request: Request) {
     const manifest = await getBatchManifest(batchParam);
 
     if (!manifest) {
-      return NextResponse.json(
+      return withPublicApiCors(request, NextResponse.json(
         {
           success: false,
           error: "Batch not found",
@@ -159,13 +172,13 @@ export async function GET(request: Request) {
           jobs: [],
         },
         { status: 404 }
-      );
+      ));
     }
 
     const jobs = manifest.jobs.map((job) => resolveStatus(job.relativePath, job.filename));
     const summary = summarize(jobs);
 
-    return NextResponse.json({
+    return withPublicApiCors(request, NextResponse.json({
       success: true,
       batch: {
         batchId: manifest.batchId,
@@ -174,7 +187,7 @@ export async function GET(request: Request) {
       },
       summary,
       jobs,
-    });
+    }));
   }
 
   const jobs = uniquePaths.map((relativePath) => resolveStatus(relativePath));
@@ -184,9 +197,9 @@ export async function GET(request: Request) {
     doneCount: snapshot.doneJobs.length,
   };
 
-  return NextResponse.json({
+  return withPublicApiCors(request, NextResponse.json({
     success: true,
     summary,
     jobs,
-  });
+  }));
 }

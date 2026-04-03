@@ -10,6 +10,8 @@ export type JobMetadata = {
   copies: string;
   color: string;
   folder: string;
+  batchId?: string;
+  originalFilename?: string;
   status: JobStatus;
 };
 

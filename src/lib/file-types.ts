@@ -7,15 +7,7 @@ export const ALLOWED_FILE_EXTENSIONS = new Set([
   ".jpg",
   ".jpeg",
   ".png",
-  ".webp",
-  ".doc",
   ".docx",
-  ".xls",
-  ".xlsx",
-  ".ppt",
-  ".pptx",
-  ".txt",
-  ".csv",
 ]);
 
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);

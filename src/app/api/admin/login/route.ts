@@ -6,8 +6,15 @@ import {
   getAdminSessionMaxAge,
   isValidStaffLogin,
 } from "@/lib/admin-auth";
+import { ensureBackendRoute } from "@/lib/role-guards";
 
 export async function POST(request: Request) {
+  const deniedResponse = ensureBackendRoute();
+
+  if (deniedResponse) {
+    return deniedResponse;
+  }
+
   try {
     const configurationError = getAdminAuthConfigurationError();
 

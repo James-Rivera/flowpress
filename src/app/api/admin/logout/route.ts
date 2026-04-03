@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_SESSION_COOKIE, shouldUseSecureAdminCookie } from "@/lib/admin-auth";
 import { isSafeAdminReturnPath } from "@/lib/admin-route";
+import { getRequestOrigin } from "@/lib/request-origin";
 import { ensureBackendRoute } from "@/lib/role-guards";
 
 export async function POST(request: NextRequest) {
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
     ? requestedReturnTo
     : "/admin/login?notice=Logged+out";
 
-  const response = NextResponse.redirect(new URL(returnTo, request.url));
+  const response = NextResponse.redirect(new URL(returnTo, getRequestOrigin(request)));
   response.cookies.set({
     name: ADMIN_SESSION_COOKIE,
     value: "",

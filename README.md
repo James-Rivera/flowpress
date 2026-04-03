@@ -130,6 +130,185 @@ Windows launcher files live in [tools/shop-launcher/README.md](/c:/Users/James%2
 
 The helper resolves relative job paths against the local Syncthing mirror, such as `C:\print_uploads`, and opens or prints the file locally.
 
+## Syncthing Setup
+
+This system uses two separate pieces for shop-side printing:
+
+- `Syncthing` moves files from the homelab to the Shop PC
+- the `cjnet-print://` launcher opens or prints files that already exist on the Shop PC
+
+The launcher does not perform syncing by itself.
+
+### Recommended Folder Mapping
+
+- Homelab source: `/mnt/backup/print_uploads`
+- Shop PC target: `C:\print_uploads`
+
+The Linux path and Windows path do not need to match. Syncthing mirrors folder contents, not absolute path strings.
+
+### Ubuntu Homelab
+
+Install Syncthing:
+
+```bash
+sudo apt update
+sudo apt install -y syncthing
+```
+
+Start and persist it as your user:
+
+```bash
+systemctl --user enable syncthing
+systemctl --user start syncthing
+loginctl enable-linger $USER
+```
+
+Verify:
+
+```bash
+systemctl --user status syncthing --no-pager
+```
+
+Syncthing's web UI listens on:
+
+```text
+http://127.0.0.1:8384
+```
+
+If the server is accessed over SSH, tunnel the UI to your local machine:
+
+```bash
+ssh -L 8385:127.0.0.1:8384 avera@192.168.1.50
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8385
+```
+
+### Windows Shop PC
+
+Install Syncthing with `winget`:
+
+```powershell
+winget install Syncthing.Syncthing
+```
+
+If it does not start automatically, launch it manually:
+
+```powershell
+& "C:\Users\James Carlo\AppData\Local\Microsoft\WinGet\Packages\Syncthing.Syncthing_Microsoft.Winget.Source_8wekyb3d8bbwe\syncthing-windows-amd64-v2.0.15\syncthing.exe"
+```
+
+The Windows UI should then be available at:
+
+```text
+http://127.0.0.1:8384
+```
+
+Create the target folder before accepting the share:
+
+```powershell
+New-Item -ItemType Directory -Force -Path C:\print_uploads
+```
+
+### Pair the Devices
+
+1. Open Windows Syncthing and copy the Shop PC Device ID from `This Device -> Identification`.
+2. Open Ubuntu Syncthing and click `Add Remote Device`.
+3. Paste the Shop PC Device ID and save.
+4. Go back to Windows Syncthing and accept the Ubuntu device request.
+
+### Share the Print Folder
+
+On Ubuntu Syncthing:
+
+1. Click `Add Folder`
+2. Set:
+   - Folder Label: `Print Uploads`
+   - Folder ID: `print_uploads`
+   - Folder Path: `/mnt/backup/print_uploads`
+3. Share it with the Shop PC device
+4. Save
+
+On Windows Syncthing:
+
+1. Accept the incoming folder share
+2. Set the local path to:
+
+```text
+C:\print_uploads
+```
+
+3. Save and wait for the initial sync
+
+After sync, Windows should contain:
+
+```text
+C:\print_uploads\active
+C:\print_uploads\done
+C:\print_uploads\_batches
+C:\print_uploads\tmp
+```
+
+### Verify Sync
+
+On Ubuntu:
+
+```bash
+ls /mnt/backup/print_uploads/active/General
+```
+
+On Windows:
+
+```powershell
+Get-ChildItem C:\print_uploads\active\General
+```
+
+If the file exists on Ubuntu but not on Windows, the issue is Syncthing configuration rather than the launcher.
+
+### Configure the Shop Launcher Root
+
+For immediate testing:
+
+```powershell
+$env:CJNET_SYNC_ROOT="C:\print_uploads"
+```
+
+To make it persistent for the current Windows user:
+
+```powershell
+[System.Environment]::SetEnvironmentVariable("CJNET_SYNC_ROOT", "C:\print_uploads", "User")
+```
+
+Then open a new PowerShell window or sign out and back in before testing again.
+
+### Test the Custom Protocol
+
+Replace the sample filename with a real synced file:
+
+```powershell
+Start-Process "cjnet-print://launch?path=active/General/yourfile.pdf&action=open"
+Start-Process "cjnet-print://launch?path=active/General/yourfile.pdf&action=print"
+```
+
+Expected behavior:
+
+- `action=open` opens the local file in its default app
+- `action=print` uses the Windows print verb when supported by the file's default app
+
+### Common Pitfalls
+
+- If `Open Local File` does nothing, the `cjnet-print://` protocol is usually not registered yet.
+- If manual `Start-Process` works only with `/mnt/backup/print_uploads`, your Windows files are probably still under `C:\mnt\backup\print_uploads` instead of `C:\print_uploads`.
+- If `http://127.0.0.1:8384` does not open on Windows, Syncthing is installed but not currently running.
+- If `systemctl --user status syncthing` shows `failed` on Ubuntu, restart it and inspect logs with:
+
+```bash
+journalctl --user -u syncthing -n 50 --no-pager
+```
+
 ## Verification
 
 Run lint checks:

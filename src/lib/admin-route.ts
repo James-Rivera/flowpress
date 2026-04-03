@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequestAuthenticated } from "@/lib/admin-auth";
+import { getRequestOrigin } from "@/lib/request-origin";
 
 export function isSafeAdminReturnPath(value: string) {
   if (!value || value.startsWith("//") || /[\r\n]/.test(value)) {
@@ -25,14 +26,14 @@ export function redirectWithAdminNotice(
   tone: "success" | "error"
 ) {
   const safePath = isSafeAdminReturnPath(returnTo) ? returnTo : "/admin";
-  const url = new URL(safePath, request.url);
+  const url = new URL(safePath, getRequestOrigin(request));
   url.searchParams.set("notice", notice);
   url.searchParams.set("tone", tone);
   return NextResponse.redirect(url);
 }
 
 export function redirectToAdminLogin(request: NextRequest) {
-  return NextResponse.redirect(new URL("/admin/login", request.url));
+  return NextResponse.redirect(new URL("/admin/login", getRequestOrigin(request)));
 }
 
 export function ensureAdminRequestAuthenticated(request: NextRequest) {

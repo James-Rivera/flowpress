@@ -16,4 +16,4 @@ New-ItemProperty -Path $protocolKey -Name "URL Protocol" -Value "" -Force | Out-
 New-Item -Path "$protocolKey\shell\open\command" -Force | Out-Null
 Set-ItemProperty -Path "$protocolKey\shell\open\command" -Name "(default)" -Value $command
 
-Write-Host "Registered $ProtocolName:// protocol handler."
+Write-Host "Registered ${ProtocolName}:// protocol handler."

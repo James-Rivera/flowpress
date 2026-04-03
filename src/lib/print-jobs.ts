@@ -11,10 +11,15 @@ export type {
 export {
   getActiveStorageDriver,
   getBatchesDir,
+  getBlobPrefix,
   getStorageSetupError,
+  getStorageDriver,
+  getTmpDir,
+  getUploadRetentionHours,
   getUploadsRootDir,
 } from "@/lib/print-job-config";
 export {
+  cleanupFilesystemUploads,
   getBatchManifest,
   getFolderTree,
   getUploadJob,

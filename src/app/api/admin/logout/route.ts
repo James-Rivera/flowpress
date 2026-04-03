@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ADMIN_SESSION_COOKIE } from "@/lib/admin-auth";
+import { ADMIN_SESSION_COOKIE, shouldUseSecureAdminCookie } from "@/lib/admin-auth";
 import { isSafeAdminReturnPath } from "@/lib/admin-route";
+import { ensureBackendRoute } from "@/lib/role-guards";
 
 export async function POST(request: NextRequest) {
+  const deniedResponse = ensureBackendRoute();
+
+  if (deniedResponse) {
+    return deniedResponse;
+  }
+
   const requestedReturnTo = request.nextUrl.searchParams.get("returnTo")?.trim() || "";
   const returnTo = isSafeAdminReturnPath(requestedReturnTo)
     ? requestedReturnTo
@@ -14,7 +21,7 @@ export async function POST(request: NextRequest) {
     value: "",
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureAdminCookie(request),
     path: "/",
     maxAge: 0,
   });

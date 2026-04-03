@@ -1,5 +1,6 @@
 import {
   mkdir,
+  rm,
   opendir,
   readFile,
   readdir,
@@ -7,9 +8,18 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { BlobNotFoundError, BlobPreconditionFailedError, copy, del, get, head, list, put } from "@vercel/blob";
+import {
+  getBatchesDir,
+  getBlobPrefix,
+  getDoneDir,
+  getStorageDriver,
+  getTmpDir,
+  getUploadsDir,
+  getUploadsRootDir,
+} from "@/lib/print-job-config";
+import { getUploadRetentionHours } from "@/lib/print-job-config";
 
 export type JobStatus = "pending" | "printing" | "done";
 export type JobBucket = "active" | "done";
@@ -63,70 +73,9 @@ const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
 const TEXT_EXTENSIONS = new Set([".txt", ".md", ".csv", ".json", ".log"]);
 const OFFICE_EXTENSIONS = new Set([".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"]);
 const jobLocks = new Map<string, Promise<void>>();
-const DEFAULT_BLOB_PREFIX = "cjnet-print";
-
-function getStorageDriver(): StorageDriver {
-  const configured = process.env.STORAGE_DRIVER?.trim().toLowerCase();
-
-  if (configured === "filesystem" || configured === "blob") {
-    return configured;
-  }
-
-  if (process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
-    return "blob";
-  }
-
-  return "filesystem";
-}
 
 export function getActiveStorageDriver(): StorageDriver {
   return getStorageDriver();
-}
-
-export function getStorageSetupError() {
-  if (process.env.VERCEL === "1" && getStorageDriver() !== "blob") {
-    return "Vercel uploads require Blob storage. Connect a Vercel Blob store and set BLOB_READ_WRITE_TOKEN.";
-  }
-
-  return null;
-}
-
-function getBlobPrefix() {
-  const configured = process.env.BLOB_PATH_PREFIX?.trim();
-  const prefix = configured || DEFAULT_BLOB_PREFIX;
-  return prefix.replace(/^\/+|\/+$/g, "");
-}
-
-function resolveBaseUploadsDir() {
-  const configuredPath = process.env.UPLOADS_DIR?.trim();
-
-  if (configuredPath) {
-    return path.isAbsolute(configuredPath)
-      ? configuredPath
-      : path.resolve(/* turbopackIgnore: true */ process.cwd(), configuredPath);
-  }
-
-  if (process.env.VERCEL === "1") {
-    return path.join(os.tmpdir(), "cjnet-print", "uploads");
-  }
-
-  return path.join(/* turbopackIgnore: true */ process.cwd(), "uploads");
-}
-
-function getUploadsDir() {
-  return resolveBaseUploadsDir();
-}
-
-function getDoneDir() {
-  return path.join(getUploadsDir(), "done");
-}
-
-export function getUploadsRootDir() {
-  return getUploadsDir();
-}
-
-export function getBatchesDir() {
-  return path.join(getUploadsDir(), "_batches");
 }
 
 function getMetadataPath(dir: string, filename: string) {
@@ -886,6 +835,9 @@ export async function storeUploadedBatch({
   }
 
   const uploadsDir = getUploadsDir();
+  await mkdir(getUploadsRootDir(), { recursive: true });
+  await mkdir(getDoneDir(), { recursive: true });
+  await mkdir(getTmpDir(), { recursive: true });
   await mkdir(uploadsDir, { recursive: true });
   const targetFolderPath = path.join(uploadsDir, normalizedFolder);
   await mkdir(targetFolderPath, { recursive: true });
@@ -978,10 +930,10 @@ export async function readStoredUploadFile(relativePath: string): Promise<Stored
     }
   }
 
-  const uploadsRoot = getUploadsRootDir();
-  const absolutePath = path.resolve(uploadsRoot, normalizedRelativePath);
+  const baseDir = bucket === "done" ? getDoneDir() : getUploadsDir();
+  const absolutePath = path.resolve(baseDir, cleanRelativePath);
 
-  if (!absolutePath.startsWith(path.resolve(uploadsRoot))) {
+  if (!absolutePath.startsWith(path.resolve(baseDir))) {
     return null;
   }
 
@@ -1101,4 +1053,123 @@ export async function getFolderTree(view: "queue" | "done") {
 
   const root = view === "done" ? getDoneDir() : getUploadsDir();
   return buildFolderNodeTree(root);
+}
+
+type CleanupTarget = {
+  kind: "job" | "manifest";
+  relativePath: string;
+  bucket?: JobBucket;
+  timestamp: number;
+};
+
+async function removeFilesystemJob(job: PrintJob) {
+  const relativePath =
+    job.bucket === "done" ? job.relativePath.replace(/^done\//, "") : job.relativePath;
+  const root = job.bucket === "done" ? getDoneDir() : getUploadsDir();
+  const filePath = path.join(root, relativePath);
+  const metadataPath = `${filePath}.json`;
+
+  await rm(filePath, { force: true });
+  await rm(metadataPath, { force: true });
+}
+
+async function removeFilesystemManifest(relativePath: string) {
+  await rm(path.join(getBatchesDir(), relativePath), { force: true });
+}
+
+async function listBatchManifestTargets(): Promise<CleanupTarget[]> {
+  const batchesDir = getBatchesDir();
+
+  try {
+    const entries = await readdir(batchesDir, { withFileTypes: true });
+    const targets = await Promise.all(
+      entries
+        .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+        .map(async (entry) => {
+          const fullPath = path.join(batchesDir, entry.name);
+          const fileStats = await stat(fullPath);
+
+          return {
+            kind: "manifest" as const,
+            relativePath: entry.name,
+            timestamp: fileStats.mtimeMs,
+          };
+        })
+    );
+
+    return targets;
+  } catch {
+    return [];
+  }
+}
+
+export async function cleanupFilesystemUploads({
+  retentionHours = getUploadRetentionHours(),
+  maxUsagePercent,
+  diskUsagePercent,
+}: {
+  retentionHours?: number;
+  maxUsagePercent?: number;
+  diskUsagePercent?: number;
+} = {}) {
+  const now = Date.now();
+  const retentionMs = retentionHours * 60 * 60 * 1000;
+  const expiredBefore = now - retentionMs;
+  const deletedJobs: string[] = [];
+  const deletedManifests: string[] = [];
+
+  const [activeJobs, doneJobs, manifests] = await Promise.all([
+    listUploadJobs(),
+    listDoneJobs(),
+    listBatchManifestTargets(),
+  ]);
+
+  for (const job of [...activeJobs, ...doneJobs]) {
+    if (job.timestamp > expiredBefore) {
+      continue;
+    }
+
+    await removeFilesystemJob(job);
+    deletedJobs.push(job.relativePath);
+  }
+
+  for (const manifest of manifests) {
+    if (manifest.timestamp > expiredBefore) {
+      continue;
+    }
+
+    await removeFilesystemManifest(manifest.relativePath);
+    deletedManifests.push(manifest.relativePath);
+  }
+
+  const pressureCandidates: PrintJob[] = [];
+  const shouldEnforcePressureCleanup =
+    typeof maxUsagePercent === "number" &&
+    typeof diskUsagePercent === "number" &&
+    diskUsagePercent >= maxUsagePercent;
+
+  if (shouldEnforcePressureCleanup) {
+    pressureCandidates.push(
+      ...doneJobs
+        .filter((job) => !deletedJobs.includes(job.relativePath))
+        .sort((a, b) => a.timestamp - b.timestamp),
+      ...activeJobs
+        .filter((job) => !deletedJobs.includes(job.relativePath))
+        .sort((a, b) => a.timestamp - b.timestamp)
+    );
+
+    for (const job of pressureCandidates) {
+      await removeFilesystemJob(job);
+      deletedJobs.push(job.relativePath);
+    }
+  }
+
+  return {
+    deletedJobs,
+    deletedManifests,
+    retentionHours,
+    diskUsagePercent: diskUsagePercent ?? null,
+    maxUsagePercent: maxUsagePercent ?? null,
+    pressureCleanupApplied: shouldEnforcePressureCleanup,
+  };
 }

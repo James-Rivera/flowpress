@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { normalizeDisplayFilename } from "@/lib/file-types";
+import { getPublicApiUrl } from "@/lib/public-api";
 
 type QueueStatus = "pending" | "printing" | "done" | "missing";
 
@@ -81,7 +82,7 @@ function UploadTrackPageContent() {
     const entries = await Promise.all(
       batchIds.map(async (id) => {
         try {
-          const response = await fetch(`/api/upload/status?batch=${encodeURIComponent(id)}`, {
+          const response = await fetch(getPublicApiUrl(`/api/upload/status?batch=${encodeURIComponent(id)}`), {
             cache: "no-store",
           });
 
@@ -128,7 +129,7 @@ function UploadTrackPageContent() {
     }
 
     try {
-      const response = await fetch(`/api/upload/status?batch=${encodeURIComponent(batchId)}`, {
+      const response = await fetch(getPublicApiUrl(`/api/upload/status?batch=${encodeURIComponent(batchId)}`), {
         cache: "no-store",
       });
 

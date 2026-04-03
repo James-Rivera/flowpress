@@ -1,5 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { withPublicApiCors, buildPublicApiOptionsResponse } from "@/lib/public-api-response";
+import { ensureBackendRoute } from "@/lib/role-guards";
 import {
   getActiveStorageDriver,
   getStorageSetupError,
@@ -18,15 +20,26 @@ function createBatchId() {
   return `B-${timestamp}-${random}`;
 }
 
-export async function POST(request: Request) {
+export function OPTIONS(request: NextRequest) {
+  const deniedResponse = ensureBackendRoute();
+  return deniedResponse ?? buildPublicApiOptionsResponse(request);
+}
+
+export async function POST(request: NextRequest) {
+  const deniedResponse = ensureBackendRoute();
+
+  if (deniedResponse) {
+    return deniedResponse;
+  }
+
   try {
     const storageSetupError = getStorageSetupError();
 
     if (storageSetupError) {
-      return NextResponse.json(
+      return withPublicApiCors(request, NextResponse.json(
         { success: false, error: storageSetupError },
         { status: 503 }
-      );
+      ));
     }
 
     const formData = await request.formData();
@@ -47,22 +60,22 @@ export async function POST(request: Request) {
     const folder = formData.get("folder");
 
     if (uploadedFiles.length === 0) {
-      return NextResponse.json(
+      return withPublicApiCors(request, NextResponse.json(
         { success: false, error: "At least one file is required" },
         { status: 400 }
-      );
+      ));
     }
 
     const validationError = validateUploadFiles(uploadedFiles, UPLOAD_LIMITS);
 
     if (validationError) {
-      return NextResponse.json(
+      return withPublicApiCors(request, NextResponse.json(
         {
           success: false,
           error: validationError,
         },
         { status: 400 }
-      );
+      ));
     }
 
     const batchId = createBatchId();
@@ -76,12 +89,12 @@ export async function POST(request: Request) {
       files: uploadedFiles,
     });
 
-    return NextResponse.json({
+    return withPublicApiCors(request, NextResponse.json({
       success: true,
       batchId,
       uploadedCount: jobs.length,
       jobs,
-    });
+    }));
   } catch (error) {
     console.error("[api/upload] upload failed", {
       error: error instanceof Error ? error.message : String(error),
@@ -95,9 +108,9 @@ export async function POST(request: Request) {
       configuredUploadsDir: process.env.UPLOADS_DIR ?? null,
     });
 
-    return NextResponse.json(
+    return withPublicApiCors(request, NextResponse.json(
       { success: false, error: "Upload failed due to a server error" },
       { status: 500 }
-    );
+    ));
   }
 }

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { encodePathSegments, getRelativePathFileName, isPreviewSupported } from "@/lib/file-types";
+import { buildShopLaunchUrl } from "@/lib/shop-launch";
 
 function AdminPrintPageContent() {
   const searchParams = useSearchParams();
@@ -17,6 +18,8 @@ function AdminPrintPageContent() {
   const canPreview = isPreviewSupported(fileName);
   const sourceUrl = `/api/uploads/${encodedPath}`;
   const downloadUrl = `/api/uploads/${encodedPath}?download=1`;
+  const openLocalUrl = buildShopLaunchUrl(relativePath, "open");
+  const printLocalUrl = buildShopLaunchUrl(relativePath, "print");
 
   const handlePrint = () => {
     if (!frameRef.current?.contentWindow) {
@@ -74,12 +77,24 @@ function AdminPrintPageContent() {
             <p className="text-sm text-[#6B7280]">{fileName}</p>
           </div>
           <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+            <a
+              href={printLocalUrl}
+              className="inline-flex flex-1 items-center justify-center rounded-xl bg-[#F4D400] px-4 py-2.5 text-sm font-semibold text-[#111827] hover:bg-[#e3c400] sm:flex-none"
+            >
+              Print Local Copy
+            </a>
+            <a
+              href={openLocalUrl}
+              className="inline-flex flex-1 items-center justify-center rounded-xl border border-[#E5E7EB] bg-white px-4 py-2.5 text-sm font-semibold text-[#111827] hover:bg-[#F7F7F8] sm:flex-none"
+            >
+              Open Local File
+            </a>
             <button
               type="button"
               onClick={handlePrint}
-              className="inline-flex flex-1 items-center justify-center rounded-xl bg-[#F4D400] px-4 py-2.5 text-sm font-semibold text-[#111827] hover:bg-[#e3c400] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-2 sm:flex-none"
+              className="inline-flex flex-1 items-center justify-center rounded-xl border border-[#E5E7EB] bg-white px-4 py-2.5 text-sm font-semibold text-[#111827] hover:bg-[#F7F7F8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-2 sm:flex-none"
             >
-              Print
+              Browser Print Fallback
             </button>
             <a
               href={downloadUrl}
@@ -103,7 +118,7 @@ function AdminPrintPageContent() {
           <div className="mt-4 rounded-2xl border border-[#E53935]/30 bg-[#E53935]/10 p-4 text-sm text-[#111827]">
             <p className="font-medium text-[#111827]">Preview unavailable for this file type.</p>
             <p className="mt-1 text-[#6B7280]">
-              Download the file and print it from your installed Office or document app.
+              Open the synced local file in its desktop app, or download as a fallback.
             </p>
           </div>
         )}

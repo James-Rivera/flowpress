@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "cleanup:uploads": "node scripts/cleanup-print-uploads.mjs"
   },
   "dependencies": {
     "@vercel/blob": "^2.3.2",

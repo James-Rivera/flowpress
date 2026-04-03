@@ -9,6 +9,8 @@ import { ADMIN_SESSION_COOKIE, isAdminSessionCookieValue } from "@/lib/admin-aut
 import { encodePathSegments, getFileKind } from "@/lib/file-types";
 import { type PrintJob } from "@/lib/print-jobs";
 import { getQueueSnapshot } from "@/lib/print-job-service";
+import { ensureBackendPage } from "@/lib/role-guards";
+import { buildShopLaunchUrl } from "@/lib/shop-launch";
 
 export const dynamic = "force-dynamic";
 
@@ -82,16 +84,6 @@ function buildPrintTabHref(relativePath: string) {
   return `/admin/print?${params.toString()}`;
 }
 
-function buildPreferredPrintHref(relativePath: string, fileName: string) {
-  const fileKind = getFileKind(fileName);
-
-  if (fileKind === "image" || fileKind === "pdf") {
-    return `/api/uploads/${encodePathSegments(relativePath)}`;
-  }
-
-  return buildPrintTabHref(relativePath);
-}
-
 function buildReturnTo(
   view: "queue" | "done",
   preview: string | undefined,
@@ -157,6 +149,8 @@ export default async function AdminPage({
 }: {
   searchParams: Promise<AdminSearchParams>;
 }) {
+  ensureBackendPage();
+
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get(ADMIN_SESSION_COOKIE)?.value;
 
@@ -295,16 +289,27 @@ export default async function AdminPage({
                     </p>
 
                     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                      <Link
-                        href={buildPreferredPrintHref(
-                          nowPrinting.relativePath,
-                          nowPrinting.filename
-                        )}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <a
+                        href={buildShopLaunchUrl(nowPrinting.relativePath, "print")}
                         className="rounded-xl bg-[#F4D400] px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#e3c400]"
                       >
-                        Print
+                        Print Local Copy
+                      </a>
+                      <a
+                        href={buildShopLaunchUrl(nowPrinting.relativePath, "open")}
+                        className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#F7F7F8]"
+                      >
+                        Open Local File
+                      </a>
+                      <Link
+                        href={getFileKind(nowPrinting.filename) === "image" || getFileKind(nowPrinting.filename) === "pdf"
+                          ? `/api/uploads/${encodePathSegments(nowPrinting.relativePath)}`
+                          : buildPrintTabHref(nowPrinting.relativePath)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#F7F7F8]"
+                      >
+                        Browser Fallback
                       </Link>
 
                       <ConfirmActionForm
@@ -405,6 +410,8 @@ export default async function AdminPage({
             <PreviewPanel
               title={previewJob.filename}
               relativePath={previewJob.relativePath}
+              openLocalUrl={buildShopLaunchUrl(previewJob.relativePath, "open")}
+              printLocalUrl={buildShopLaunchUrl(previewJob.relativePath, "print")}
             />
           ) : (
             <aside className="rounded-2xl border border-[#E5E7EB] bg-white p-4 text-sm text-[#6B7280] shadow-sm">

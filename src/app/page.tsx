@@ -63,6 +63,7 @@ export default function Home() {
       href: "/upload",
       label: "Upload File",
       icon: <UploadIcon />,
+      external: false,
     },
     {
       href: "https://m.me/cjnetvalley",
@@ -80,6 +81,7 @@ export default function Home() {
       href: "/send/bluetooth",
       label: "In-shop transfer",
       icon: <PhoneIcon />,
+      external: false,
     },
   ] as const;
 

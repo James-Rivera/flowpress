@@ -1,5 +1,41 @@
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
+
+function UploadIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+      <path d="M12 16V5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m8 9 4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 19h14" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function MessageIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+      <path d="M7 18.5c-1.7 0-3-1.3-3-3V7.8c0-1.7 1.3-3 3-3h10c1.7 0 3 1.3 3 3v7.7c0 1.7-1.3 3-3 3H11l-4 2.7V18.5Z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function MailIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+      <path d="M4 7.5 12 13l8-5.5" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="4" y="6" width="16" height="12" rx="2" />
+    </svg>
+  );
+}
+
+function PhoneIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+      <rect x="7" y="3.5" width="10" height="17" rx="2.2" />
+      <path d="M11 17.5h2" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 export default function Home() {
   const gmailTo = "cjnetvalley@gmail.com";
@@ -22,67 +58,87 @@ export default function Home() {
     gmailTo
   )}&su=${encodeURIComponent(gmailSubject)}&body=${encodeURIComponent(gmailBody)}`;
 
+  const quickActions = [
+    {
+      href: "/upload",
+      label: "Upload File",
+      icon: <UploadIcon />,
+    },
+    {
+      href: "https://m.me/cjnetvalley",
+      label: "Send via Messenger",
+      icon: <MessageIcon />,
+      external: true,
+    },
+    {
+      href: gmailComposeUrl,
+      label: "Send via Email",
+      icon: <MailIcon />,
+      external: true,
+    },
+    {
+      href: "/send/bluetooth",
+      label: "In-shop transfer",
+      icon: <PhoneIcon />,
+    },
+  ] as const;
+
   return (
-    <main className="min-h-screen bg-[#F7F7F8] px-4 py-6 sm:py-10">
-      <section className="mx-auto w-full max-w-[460px] rounded-3xl border border-[#E5E7EB] bg-white p-6 text-center shadow-[0_10px_24px_rgba(17,24,39,0.08)] sm:p-7">
-        <div className="mx-auto mb-5 flex w-full max-w-[136px] items-center justify-center">
-          <Image
-            src="/logo.svg"
-            alt="CJ NET shop logo"
-            width={360}
-            height={120}
-            className="h-auto w-full"
-            priority
-          />
-        </div>
+    <main className="app-shell">
+      <section className="page-wrap customer-wrap">
+        <section className="mx-auto max-w-md rounded-[1.5rem] border border-[rgba(20,23,31,0.08)] bg-white p-5 shadow-[0_6px_18px_rgba(20,23,31,0.05)] sm:p-6">
+          <div className="flex justify-center">
+            <Link href="/" className="utility-logo-link w-full max-w-[160px]">
+              <Image
+                src="/logo.svg"
+                alt="CJ NET shop logo"
+                width={360}
+                height={120}
+                className="h-auto w-full"
+                priority
+              />
+            </Link>
+          </div>
 
-        <h1 className="text-[2.15rem] font-bold tracking-tight text-[#111827] sm:text-[2.35rem]">
-          Fast File Submission
-        </h1>
-        <p className="mt-3 text-[1.05rem] text-[#6B7280]">
-          Send your print request in a few taps.
-        </p>
+          <p className="mt-5 text-center text-sm font-medium text-[#5F6778]">Choose how to send your file.</p>
 
-        <div className="mt-6 flex flex-col gap-3">
-          <a
-            href="https://m.me/cjnetvalley"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex w-full items-center justify-center rounded-2xl bg-[#F4D400] px-4 py-3.5 text-lg font-bold text-[#111827] transition-colors hover:bg-[#e3c400] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-2"
-          >
-            Send via Messenger
-          </a>
+          <div className="mt-4 space-y-3">
+            {quickActions.map((action) => {
+              const content = (
+                <>
+                  <span className="utility-action-icon" aria-hidden="true">
+                    {action.icon}
+                  </span>
+                  <span>{action.label}</span>
+                </>
+              );
 
-          <Link
-            href="/upload"
-            className="inline-flex w-full items-center justify-center rounded-2xl border border-[#D1D5DB] bg-white px-4 py-3.5 text-lg font-semibold text-[#111827] transition-colors hover:bg-[#F7F7F8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-2"
-          >
-            Upload File
-          </Link>
+              if (action.external) {
+                return (
+                  <a
+                    key={action.label}
+                    href={action.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="utility-action-btn"
+                  >
+                    {content}
+                  </a>
+                );
+              }
 
-          <a
-            href={gmailComposeUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex w-full items-center justify-center rounded-2xl border border-[#D1D5DB] bg-white px-4 py-3.5 text-lg font-semibold text-[#111827] transition-colors hover:bg-[#F7F7F8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-2"
-          >
-            Send via Gmail
-          </a>
+              return (
+                <Link key={action.label} href={action.href} className="utility-action-btn">
+                  {content}
+                </Link>
+              );
+            })}
+          </div>
 
-          <Link
-            href="/send/bluetooth"
-            className="inline-flex w-full items-center justify-center rounded-2xl border border-[#D1D5DB] bg-white px-4 py-3.5 text-lg font-semibold text-[#111827] transition-colors hover:bg-[#F7F7F8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-2"
-          >
-            Send via Bluetooth
-          </Link>
-        </div>
-
-        <details className="mt-5 rounded-2xl border border-[#E5E7EB] bg-[#F7F7F8] p-3 text-left">
-          <summary className="cursor-pointer text-sm font-semibold text-[#111827]">Need help?</summary>
-          <p className="mt-2 text-sm text-[#6B7280]">
-            Show this page to staff and they will assist you with Messenger, Upload, Gmail, or Bluetooth.
+          <p className="mt-4 text-xs text-[#5F6778]">
+            If you need help, show this page to staff.
           </p>
-        </details>
+        </section>
       </section>
     </main>
   );

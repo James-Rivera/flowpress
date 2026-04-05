@@ -31,12 +31,19 @@ Design and build this system as a real internal tool for a physical printing sho
 - Clarity over complexity.
 - Minimal steps and obvious actions.
 - Strong visual hierarchy with low cognitive load.
+- Design can feel premium, but operational clarity must still win every time.
+- Treat the product like a real-world utility app, not a SaaS dashboard.
+- Remove wording or visuals that make the tool feel technical, formal, or intimidating for walk-in customers.
 
 ## Device Context
 - Staff interfaces should optimize for desktop/laptop scanning and fast actions.
 - Customer interfaces should optimize for mobile simplicity and clear guidance.
 
 ## Visual Direction
-- Professional, clean SaaS style.
-- Neutral UI with controlled brand accents.
-- Avoid clutter and unnecessary features.
+- Professional and calm, not generic SaaS and not a marketing page.
+- Neutral-first UI with controlled brand accents.
+- Use the yellow/red palette as signal, not wallpaper.
+- Customer screens should feel welcoming and easy.
+- Staff screens should feel decisive, scan-friendly, and fast.
+- Prefer plain, direct headings over branded hero copy.
+- Prefer one main task container over multiple decorative panels when possible.

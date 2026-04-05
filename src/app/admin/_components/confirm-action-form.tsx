@@ -65,21 +65,21 @@ export default function ConfirmActionForm({
 
       {isModalOpen ? (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#111827]/40 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-2xl">
+          <div className="w-full max-w-md rounded-[1.25rem] border border-[#E5E7EB] bg-white p-5 shadow-2xl">
             <h3 className="text-base font-semibold text-[#111827]">Confirm Action</h3>
             <p className="mt-2 text-sm text-[#6B7280]">{confirmMessage}</p>
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#F7F7F8]"
+                className="secondary-btn !px-4 !py-2 !text-sm"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirm}
-                className="rounded-xl bg-[#E53935] px-4 py-2 text-sm font-semibold text-white hover:bg-[#cf302c]"
+                className="danger-btn !bg-[#E53935] !px-4 !py-2 !text-sm !text-white hover:!bg-[#cf302c]"
               >
                 Confirm
               </button>

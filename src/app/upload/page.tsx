@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState, type DragEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { getPublicApiUrl } from "@/lib/public-api";
@@ -61,8 +62,8 @@ export default function UploadPage() {
 
   const colorHint =
     color === "Color"
-      ? "Color prints may take slightly longer based on queue volume."
-      : "B&W is typically the fastest option for queue processing.";
+      ? "Color jobs can take a little longer depending on the live queue."
+      : "B&W is usually the quickest option for most print requests.";
 
   const addFiles = (files: File[]) => {
     if (files.length === 0) {
@@ -201,45 +202,39 @@ export default function UploadPage() {
 
   const submitStateClassName =
     submitState?.tone === "error"
-      ? "border-[#E53935]/30 bg-[#E53935]/10 text-[#111827]"
-      : "border-[#F4D400]/40 bg-[#fff9d6] text-[#111827]";
+      ? "border-[#E53935]/20 bg-[#fff0ef] text-[#171717]"
+      : "border-[#F4D400]/30 bg-[#fff7d0] text-[#171717]";
 
   return (
-    <main className="relative min-h-screen bg-[#F7F7F8] px-4 py-6 sm:px-6 sm:py-8">
+    <main className="app-shell">
       {isRedirecting ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#F7F7F8]/95 px-4">
-          <section className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-6 text-center shadow-sm">
-            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-[#E5E7EB] border-t-[#F4D400]" />
-            <h2 className="mt-4 text-xl font-semibold text-[#111827]">Upload successful</h2>
-            <p className="mt-2 text-sm text-[#6B7280]">
-              Opening your queue status page...
-            </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#f6f7f9]/90 px-4 backdrop-blur-sm">
+          <section className="glass-card w-full max-w-md rounded-[1.5rem] p-7 text-center">
+            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#e5e7eb] border-t-[#F4D400]" />
+            <h2 className="display-title mt-5 text-3xl font-semibold text-[#171717]">Upload received</h2>
+            <p className="mt-2 text-sm text-[#5F5B52]">Opening your batch tracker now...</p>
           </section>
         </div>
       ) : null}
 
-      <section className="mx-auto w-full max-w-xl space-y-4">
-        <header className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
-          <div className="h-1.5 w-full bg-[#F4D400]" />
-          <div className="p-5 sm:p-6">
-            <p className="inline-flex items-center gap-2 rounded-full bg-[#F7F7F8] px-3 py-1 text-xs font-semibold text-[#111827]">
-              <span className="h-2 w-2 rounded-full bg-[#E53935]" />
-              Staff will confirm before printing
-            </p>
-
-            <h1 className="mt-3 text-2xl font-semibold tracking-tight text-[#111827] sm:text-3xl">
-              Send Files for Printing
-            </h1>
-            <p className="mt-2 text-sm text-[#6B7280] sm:text-base">
-              Fill in your details then tap the yellow button to submit.
-            </p>
+      <section className="page-wrap customer-wrap space-y-4">
+        <header className="mx-auto w-full max-w-3xl rounded-[1.5rem] border border-[rgba(20,23,31,0.08)] bg-white p-5 shadow-[0_6px_18px_rgba(20,23,31,0.05)] sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Upload file</h1>
+            <Link href="/" className="secondary-btn !px-4 !py-2 !text-sm">
+              Back
+            </Link>
           </div>
+          <p className="mt-2 text-sm text-[#5F6778]">Add your file, enter the details, then send it to the queue.</p>
+          <p className="mt-3 text-xs text-[#5F6778]">
+            Up to {UPLOAD_LIMITS.maxFileCount} files, {UPLOAD_LIMITS.maxFileSizeMb}MB each, {UPLOAD_LIMITS.maxBatchSizeMb}MB total.
+          </p>
         </header>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="mx-auto w-full max-w-3xl space-y-4">
           {submitState ? (
             <div
-              className={`rounded-xl border px-4 py-3 text-sm ${submitStateClassName}`}
+              className={`rounded-[1rem] border px-4 py-3 text-sm ${submitStateClassName}`}
               role="status"
               aria-live="polite"
             >
@@ -247,22 +242,19 @@ export default function UploadPage() {
             </div>
           ) : null}
 
-          <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
-            <h2 className="text-lg font-semibold text-[#111827]">Choose your files</h2>
+          <section className="section-card rounded-[1.5rem] p-5 sm:p-6">
+            <h2 className="text-base font-semibold text-[#111827]">Files</h2>
             <p className="mt-1 text-sm text-[#6B7280]">Tap to choose files, or drag them here.</p>
-            <p className="mt-1 text-xs text-[#6B7280]">
-              Max {UPLOAD_LIMITS.maxFileCount} files, up to {UPLOAD_LIMITS.maxFileSizeMb}MB each, {UPLOAD_LIMITS.maxBatchSizeMb}MB total per batch.
-            </p>
 
             <label
               htmlFor="file"
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              className={`mt-4 block cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition-colors ${
+              className={`mt-4 block cursor-pointer rounded-[1rem] border-2 border-dashed p-6 text-center transition-colors ${
                 isDragging
                   ? "border-[#F4D400] bg-[#fff9d6]"
-                  : "border-[#E5E7EB] bg-[#F7F7F8] hover:border-[#F4D400]/70"
+                  : "border-[#E5E7EB] bg-[#F9FAFB] hover:border-[#F4D400]/70 hover:bg-white"
               }`}
             >
               <input
@@ -291,13 +283,13 @@ export default function UploadPage() {
                 {selectedFiles.map((file, index) => (
                   <div
                     key={`${file.name}-${file.size}-${file.lastModified}`}
-                    className="flex items-center justify-between rounded-xl border border-[#E5E7EB] bg-white px-3 py-2 text-sm"
+                    className="flex items-center justify-between rounded-[1rem] border border-[#E5E7EB] bg-white px-3 py-2 text-sm"
                   >
                     <span className="truncate pr-3 text-[#111827]">{file.name}</span>
                     <button
                       type="button"
                       onClick={() => removeSelectedFile(index)}
-                      className="rounded-lg border border-[#E5E7EB] px-2 py-1 text-xs font-medium text-[#111827] hover:bg-[#F7F7F8]"
+                      className="secondary-btn !rounded-[0.7rem] !px-2.5 !py-1.5 !text-xs !font-medium"
                     >
                       Remove
                     </button>
@@ -306,7 +298,7 @@ export default function UploadPage() {
                 <button
                   type="button"
                   onClick={clearSelectedFiles}
-                  className="w-full rounded-xl border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:bg-[#F7F7F8]"
+                  className="secondary-btn w-full !text-sm !font-medium"
                 >
                   Clear all files
                 </button>
@@ -314,10 +306,10 @@ export default function UploadPage() {
             ) : null}
           </section>
 
-          <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
-            <h2 className="text-lg font-semibold text-[#111827]">Print details</h2>
+          <section className="section-card rounded-[1.5rem] p-5 sm:p-6">
+            <h2 className="text-base font-semibold text-[#111827]">Print details</h2>
 
-            <div className="mt-4 space-y-4">
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <label htmlFor="name" className="text-sm font-semibold text-[#111827]">
                   Your name
@@ -329,7 +321,7 @@ export default function UploadPage() {
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   placeholder="Enter your name"
-                  className="w-full rounded-xl border border-[#E5E7EB] bg-white p-4 text-base text-[#111827] placeholder:text-[#6B7280] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-1"
+                  className="input-field"
                   required
                 />
               </div>
@@ -343,7 +335,7 @@ export default function UploadPage() {
                   name="size"
                   value={size}
                   onChange={(event) => setSize(event.target.value as (typeof SIZE_OPTIONS)[number])}
-                  className="w-full rounded-xl border border-[#E5E7EB] bg-white p-4 text-base text-[#111827] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-1"
+                  className="input-field"
                 >
                   {SIZE_OPTIONS.map((option) => (
                     <option key={option} value={option}>
@@ -354,14 +346,34 @@ export default function UploadPage() {
               </div>
 
               <div className="flex flex-col gap-2">
+                <label htmlFor="color" className="text-sm font-semibold text-[#111827]">
+                  Print mode
+                </label>
+                <select
+                  id="color"
+                  name="color"
+                  value={color}
+                  onChange={(event) => setColor(event.target.value as (typeof COLOR_OPTIONS)[number])}
+                  className="input-field"
+                >
+                  {COLOR_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-[#6B7280]">{colorHint}</p>
+              </div>
+
+              <div className="flex flex-col gap-2">
                 <label htmlFor="copies" className="text-sm font-semibold text-[#111827]">
-                  How many copies?
+                  Copies
                 </label>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setCopies(Math.max(1, copies - 1))}
-                    className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-lg font-semibold text-[#111827] hover:bg-[#F7F7F8]"
+                    className="secondary-btn !rounded-[0.9rem] !px-4 !py-3 !text-lg"
                   >
                     -
                   </button>
@@ -373,48 +385,41 @@ export default function UploadPage() {
                     max={50}
                     value={copies}
                     onChange={(event) => setCopies(Math.max(1, Number(event.target.value) || 1))}
-                    className="w-24 rounded-xl border border-[#E5E7EB] bg-white p-3 text-center text-base font-semibold text-[#111827] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-1"
+                    className="input-field w-24 text-center font-semibold"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setCopies(Math.min(50, copies + 1))}
-                    className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-lg font-semibold text-[#111827] hover:bg-[#F7F7F8]"
+                    className="secondary-btn !rounded-[0.9rem] !px-4 !py-3 !text-lg"
                   >
                     +
                   </button>
                 </div>
               </div>
-
-              <div className="flex flex-col gap-2">
-                <label htmlFor="color" className="text-sm font-semibold text-[#111827]">
-                  Color or black and white?
-                </label>
-                <select
-                  id="color"
-                  name="color"
-                  value={color}
-                  onChange={(event) => setColor(event.target.value as (typeof COLOR_OPTIONS)[number])}
-                  className="w-full rounded-xl border border-[#E5E7EB] bg-white p-4 text-base text-[#111827] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-1"
-                >
-                  {COLOR_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-[#6B7280]">{colorHint}</p>
-              </div>
             </div>
           </section>
 
-          <button
-            type="submit"
-            disabled={isSubmitting || isRedirecting}
-            className="w-full rounded-2xl bg-[#F4D400] px-5 py-4 text-lg font-bold text-[#111827] hover:bg-[#e3c400] disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {isSubmitting ? "Submitting..." : "Send to Print Queue"}
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="submit"
+              disabled={isSubmitting || isRedirecting}
+              className="primary-btn flex-1 text-lg disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isSubmitting ? "Submitting..." : "Send to Print Queue"}
+            </button>
+            <button
+              type="button"
+              onClick={clearSelectedFiles}
+              className="secondary-btn flex-1"
+            >
+              Clear files
+            </button>
+          </div>
+
+          <p className="text-center text-xs text-[#5F6778]">
+            Staff reviews each request before printing starts.
+          </p>
         </form>
       </section>
     </main>

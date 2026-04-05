@@ -48,68 +48,74 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#F7F7F8] px-4 py-6 sm:py-8">
-      <section className="mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
-        <div className="h-1.5 w-full bg-[#F4D400]" />
-        <div className="p-5 sm:p-6">
-          <p className="inline-flex items-center gap-2 rounded-full bg-[#F7F7F8] px-3 py-1 text-xs font-semibold text-[#111827]">
-            <span className="h-2 w-2 rounded-full bg-[#E53935]" />
-            Staff only
-          </p>
-
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-[#111827] sm:text-3xl">
-            Staff Login
-          </h1>
-          <p className="mt-2 text-sm text-[#6B7280]">
-            Sign in to process queue jobs and confirm print status updates.
-          </p>
-
-          {errorMessage ? (
-            <div
-              className="mt-4 rounded-xl border border-[#E53935]/30 bg-[#E53935]/10 px-4 py-3 text-sm text-[#111827]"
-              role="alert"
-            >
-              {errorMessage}
+    <main className="app-shell">
+      <section className="page-wrap customer-wrap">
+        <div className="mx-auto grid max-w-5xl gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+          <section className="glass-card rounded-[1.5rem] px-6 py-7 sm:px-8 sm:py-8">
+            <div className="brand-badge">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#E53935]" />
+              Staff workspace
             </div>
-          ) : null}
+            <h1 className="display-title mt-4 text-[2.2rem] leading-tight font-semibold text-[#171717] sm:text-[2.9rem]">
+              Staff access for queue management.
+            </h1>
+            <p className="mt-4 max-w-xl text-base leading-7 text-[#5F5B52]">
+              Use the admin view to start jobs, confirm completed prints, and keep the queue moving without losing
+              the current task.
+            </p>
 
-          <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <label htmlFor="username" className="text-sm font-semibold text-[#111827]">
-                Username
-              </label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                required
-                autoComplete="username"
-                className="w-full rounded-xl border border-[#E5E7EB] bg-white p-3 text-base text-[#111827] placeholder:text-[#6B7280] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-1"
-              />
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              <div className="stat-card">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5F5B52]">Focused</p>
+                <p className="mt-2 text-lg font-semibold text-[#171717]">One live print state</p>
+              </div>
+              <div className="stat-card">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5F5B52]">Manual</p>
+                <p className="mt-2 text-lg font-semibold text-[#171717]">Staff confirms transitions</p>
+              </div>
+              <div className="stat-card">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5F5B52]">Practical</p>
+                <p className="mt-2 text-lg font-semibold text-[#171717]">Built for queue speed</p>
+              </div>
             </div>
+          </section>
 
-            <div className="flex flex-col gap-2">
-              <label htmlFor="password" className="text-sm font-semibold text-[#111827]">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                className="w-full rounded-xl border border-[#E5E7EB] bg-white p-3 text-base text-[#111827] placeholder:text-[#6B7280] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-1"
-              />
+          <section className="section-card rounded-[1.5rem] p-6 sm:p-7">
+            <div className="status-pill status-pill-danger">
+              <span className="h-2 w-2 rounded-full bg-[#E53935]" />
+              Staff only
             </div>
+            <h2 className="display-title mt-4 text-2xl font-semibold text-[#171717]">Sign in</h2>
+            <p className="mt-2 text-sm leading-7 text-[#5F5B52]">
+              Enter your staff account to manage queue actions and print confirmations.
+            </p>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="mt-2 rounded-xl bg-[#F4D400] px-4 py-3 text-base font-semibold text-[#111827] hover:bg-[#e3c400] disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {isSubmitting ? "Signing in..." : "Login"}
-            </button>
-          </form>
+            {errorMessage ? (
+              <div className="mt-4 rounded-[1rem] border border-[#E53935]/20 bg-[#fff0ef] px-4 py-3 text-sm text-[#171717]" role="alert">
+                {errorMessage}
+              </div>
+            ) : null}
+
+            <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <label htmlFor="username" className="text-sm font-semibold text-[#171717]">
+                  Username
+                </label>
+                <input id="username" name="username" type="text" required autoComplete="username" className="input-field" />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label htmlFor="password" className="text-sm font-semibold text-[#171717]">
+                  Password
+                </label>
+                <input id="password" name="password" type="password" required autoComplete="current-password" className="input-field" />
+              </div>
+
+              <button type="submit" disabled={isSubmitting} className="primary-btn mt-2 w-full disabled:cursor-not-allowed disabled:opacity-70">
+                {isSubmitting ? "Signing in..." : "Login"}
+              </button>
+            </form>
+          </section>
         </div>
       </section>
     </main>

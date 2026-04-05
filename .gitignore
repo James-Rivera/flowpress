@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# GitHub Copilot / Agents / Prompts
+.github/prompts/
+.github/instructions/
+.github/agents/
+
+# Optional: specific files
+AGENTS.md
+copilot-instructions.md
+brand-ui-refactor.agent.md
+cjnet-operations-context.instructions.md
+tailwind-brand-components.instructions.md
+brand-ui-audit.prompt.md
+generate-brand-variations.prompt.md

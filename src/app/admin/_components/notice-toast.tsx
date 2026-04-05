@@ -57,7 +57,7 @@ export default function NoticeToast({
   return (
     <div className="pointer-events-none fixed right-5 top-5 z-50">
       <div
-        className={`pointer-events-auto rounded-xl border px-4 py-3 text-sm font-medium shadow-lg ${getToastStyle(tone)}`}
+        className={`pointer-events-auto rounded-[1rem] border px-4 py-3 text-sm font-medium shadow-[0_6px_18px_rgba(20,23,31,0.12)] ${getToastStyle(tone)}`}
       >
         {notice}
       </div>

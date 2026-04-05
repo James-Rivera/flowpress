@@ -43,6 +43,14 @@ function getJobFolder(relativePath: string) {
   return index === -1 ? "General" : clean.slice(0, index);
 }
 
+function formatJobMeta(job: PrintJob) {
+  return [
+    job.metadata.size || "-",
+    `${job.metadata.copies || "-"} copies`,
+    job.metadata.color || "-",
+  ].join(" / ");
+}
+
 function buildPreviewHref(
   view: "queue" | "done",
   relativePath: string,
@@ -113,21 +121,19 @@ function QueueItem({
   autoAdvanceEnabled: boolean;
 }) {
   return (
-    <article className="rounded-xl border border-[#E5E7EB] bg-white p-4">
+    <article className="rounded-[1rem] border border-[#E5E7EB] bg-white p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-sm font-semibold text-[#111827]">{job.metadata.name || "Unnamed job"}</p>
           <p className="mt-1 text-xs text-[#6B7280]">{job.filename}</p>
-          <p className="mt-2 text-sm text-[#111827]">
-            {job.metadata.size || "-"} • {job.metadata.copies || "-"} copies • {job.metadata.color || "-"}
-          </p>
+          <p className="mt-2 text-sm text-[#111827]">{formatJobMeta(job)}</p>
           <p className="mt-1 text-xs text-[#6B7280]">Submitted {formatTimestamp(job.timestamp)}</p>
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">
           <Link
             href={buildPreviewHref("queue", job.relativePath, autoAdvanceEnabled)}
-            className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:bg-[#F7F7F8]"
+            className="secondary-btn !px-4 !py-2 !text-sm !font-medium"
           >
             Preview
           </Link>
@@ -136,11 +142,63 @@ function QueueItem({
             jobPath={job.relativePath}
             returnTo={returnTo}
             buttonLabel="Start Printing"
-            buttonClassName="rounded-xl bg-[#F4D400] px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#e3c400]"
+            buttonClassName="primary-btn !px-4 !py-2 !text-sm"
           />
         </div>
       </div>
     </article>
+  );
+}
+
+function QueueIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M4 7h16" strokeLinecap="round" />
+      <path d="M4 12h10" strokeLinecap="round" />
+      <path d="M4 17h12" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ArchiveIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <rect x="4" y="5" width="16" height="4" rx="1.5" />
+      <path d="M6 9v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V9" />
+      <path d="M10 13h4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function NavItem({
+  href,
+  label,
+  active,
+  icon,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  icon: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`flex items-center gap-3 rounded-[1rem] px-3 py-2.5 text-sm font-medium transition-colors ${
+        active
+          ? "bg-[#fff9d6] text-[#111827]"
+          : "text-[#5F6778] hover:bg-[#F9FAFB] hover:text-[#111827]"
+      }`}
+    >
+      <span
+        className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${
+          active ? "bg-[#F4D400]/35 text-[#111827]" : "bg-[#F3F4F6] text-[#5F6778]"
+        }`}
+      >
+        {icon}
+      </span>
+      <span>{label}</span>
+    </Link>
   );
 }
 
@@ -178,99 +236,120 @@ export default async function AdminPage({
   const doneReturnTo = buildReturnTo("done", previewJob?.relativePath, autoAdvanceEnabled);
 
   return (
-    <main className="min-h-screen bg-[#F7F7F8] px-4 py-6 lg:px-8">
+    <main className="app-shell">
       <LiveAutoRefresh />
       {notice ? <NoticeToast notice={notice} tone={tone} /> : null}
 
-      <section className="mx-auto w-full max-w-[1400px] space-y-5">
-        <header className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-semibold tracking-tight text-[#111827]">CJ NET Print Ops</h1>
-              <p className="mt-2 text-sm text-[#6B7280]">
-                Process print jobs in order, track active work, and update status without losing queue flow.
-              </p>
+      <section className="page-wrap admin-wrap">
+        <div className="grid gap-6 xl:grid-cols-[240px_minmax(0,1fr)_380px]">
+          <aside className="self-start rounded-[1.75rem] border border-[#E5E7EB] bg-white p-5 shadow-[0_6px_18px_rgba(20,23,31,0.05)] xl:sticky xl:top-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5F6778]">CJ NET</p>
+                <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[#111827]">Print Ops</h1>
+              </div>
+              <form action="/api/admin/logout?returnTo=/admin/login" method="post">
+                <button type="submit" className="secondary-btn !px-3 !py-2 !text-xs">
+                  Log Out
+                </button>
+              </form>
             </div>
-            <form action="/api/admin/logout?returnTo=/admin/login" method="post">
-              <button
-                type="submit"
-                className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#F7F7F8]"
-              >
-                Log Out
-              </button>
-            </form>
-          </div>
-          <div className="mt-4 flex gap-2 sm:gap-3">
-          <Link
-            href={buildViewHref("queue", selectedPreview, autoAdvanceEnabled)}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
-              view === "queue"
-                ? "border-b-2 border-[#F4D400] bg-transparent text-[#111827]"
-                : "border-b-2 border-transparent text-[#6B7280] hover:text-[#111827]"
-            }`}
-          >
-            Pending
-          </Link>
-          <Link
-            href={buildViewHref("done", selectedPreview, autoAdvanceEnabled)}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
-              view === "done"
-                ? "border-b-2 border-[#F4D400] bg-transparent text-[#111827]"
-                : "border-b-2 border-transparent text-[#6B7280] hover:text-[#111827]"
-            }`}
-          >
-            Done
-          </Link>
-          <div className="ml-auto flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white p-1">
-            <span className="px-2 text-xs font-semibold uppercase tracking-wide text-[#6B7280]">Auto-Advance</span>
-            <Link
-              href={buildViewHref(view, selectedPreview, true)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                autoAdvanceEnabled
-                  ? "bg-[#F4D400] text-[#111827]"
-                  : "text-[#6B7280] hover:bg-[#F7F7F8]"
-              }`}
-            >
-              On
-            </Link>
-            <Link
-              href={buildViewHref(view, selectedPreview, false)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                !autoAdvanceEnabled
-                  ? "bg-[#111827] text-white"
-                  : "text-[#6B7280] hover:bg-[#F7F7F8]"
-              }`}
-            >
-              Off
-            </Link>
-          </div>
-        </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-[#E5E7EB] bg-[#F7F7F8] p-3">
-            <p className="text-xs uppercase tracking-wide text-[#6B7280]">Pending</p>
-            <p className="mt-1 text-2xl font-semibold text-[#111827]">{pendingJobs.length}</p>
-          </div>
-          <div className="rounded-xl border border-[#F4D400]/40 bg-[#fff9d6] p-3">
-            <p className="text-xs uppercase tracking-wide text-[#6B7280]">Printing</p>
-            <p className="mt-1 text-2xl font-semibold text-[#111827]">{nowPrinting ? 1 : 0}</p>
-          </div>
-          <div className="rounded-xl border border-[#E5E7EB] bg-white p-3">
-            <p className="text-xs uppercase tracking-wide text-[#6B7280]">Done Archive</p>
-            <p className="mt-1 text-2xl font-semibold text-[#111827]">{doneJobs.length}</p>
-          </div>
-        </div>
-        </header>
+            <div className="mt-6 space-y-1">
+              <NavItem
+                href={buildViewHref("queue", selectedPreview, autoAdvanceEnabled)}
+                label="Pending queue"
+                active={view === "queue"}
+                icon={<QueueIcon />}
+              />
+              <NavItem
+                href={buildViewHref("done", selectedPreview, autoAdvanceEnabled)}
+                label="Done archive"
+                active={view === "done"}
+                icon={<ArchiveIcon />}
+              />
+            </div>
 
-        <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
+            <div className="mt-6 rounded-[1.25rem] border border-[#E5E7EB] bg-[#F9FAFB] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5F6778]">Auto-advance</p>
+              <div className="mt-3 flex items-center gap-2 rounded-[0.9rem] border border-[#E5E7EB] bg-white p-1">
+                <Link
+                  href={buildViewHref(view, selectedPreview, true)}
+                  className={`flex-1 rounded-[0.7rem] px-3 py-2 text-center text-xs font-semibold ${
+                    autoAdvanceEnabled
+                      ? "bg-[#F4D400] text-[#111827]"
+                      : "text-[#5F6778] hover:bg-[#F9FAFB]"
+                  }`}
+                >
+                  On
+                </Link>
+                <Link
+                  href={buildViewHref(view, selectedPreview, false)}
+                  className={`flex-1 rounded-[0.7rem] px-3 py-2 text-center text-xs font-semibold ${
+                    !autoAdvanceEnabled
+                      ? "bg-[#111827] text-white"
+                      : "text-[#5F6778] hover:bg-[#F9FAFB]"
+                  }`}
+                >
+                  Off
+                </Link>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <div className="rounded-[1.25rem] border border-[#E5E7EB] bg-[#F9FAFB] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5F6778]">Pending</p>
+                <p className="mt-2 text-3xl font-semibold text-[#111827]">{pendingJobs.length}</p>
+              </div>
+              <div className="rounded-[1.25rem] border border-[#F4D400]/35 bg-[#fff9d6] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5F6778]">Printing</p>
+                <p className="mt-2 text-3xl font-semibold text-[#111827]">{nowPrinting ? 1 : 0}</p>
+              </div>
+              <div className="rounded-[1.25rem] border border-[#E5E7EB] bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5F6778]">Done</p>
+                <p className="mt-2 text-3xl font-semibold text-[#111827]">{doneJobs.length}</p>
+              </div>
+            </div>
+
+            <p className="mt-6 rounded-[1.25rem] border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-sm text-[#6B7280]">
+              Open Preview before printing so staff can verify the file and settings.
+            </p>
+          </aside>
+
+          <div className="space-y-5">
+            <header className="rounded-[1.75rem] border border-[#E5E7EB] bg-white p-6 shadow-[0_6px_18px_rgba(20,23,31,0.05)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5F6778]">Admin workspace</p>
+              <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <h2 className="text-3xl font-semibold tracking-tight text-[#111827]">
+                    {view === "queue" ? "Queue" : "Archive"}
+                  </h2>
+                  <p className="mt-2 text-sm text-[#6B7280]">
+                    {view === "queue"
+                      ? "Review the active job first, then move through the pending queue."
+                      : "Review completed jobs and restore them if needed."}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="status-pill status-pill-warm">Printing {nowPrinting ? 1 : 0}</span>
+                  <span className="status-pill border border-[#E5E7EB] bg-white text-[#111827]">
+                    Pending {pendingJobs.length}
+                  </span>
+                  <span className="status-pill border border-[#E5E7EB] bg-white text-[#111827]">
+                    Done {doneJobs.length}
+                  </span>
+                </div>
+              </div>
+            </header>
+
           {view === "queue" ? (
             <section className="space-y-5">
-              <section className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+              <section className="rounded-[1.75rem] border border-[#E5E7EB] bg-white p-6 shadow-[0_6px_18px_rgba(20,23,31,0.05)]">
                 <h2 className="text-xl font-semibold text-[#111827]">Now Printing</h2>
                 <p className="mt-1 text-sm text-[#6B7280]">Current active job for staff focus.</p>
 
                 {nowPrinting ? (
-                  <article className="mt-4 rounded-2xl border border-[#F4D400]/40 bg-[#fff9d6] p-5">
+                  <article className="mt-4 rounded-[1.5rem] border border-[#F4D400]/40 bg-[#fff9d6] p-5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="rounded-full bg-[#F4D400] px-3 py-1 text-xs font-semibold text-[#111827]">Printing</p>
                       <Link
@@ -291,13 +370,13 @@ export default async function AdminPage({
                     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                       <a
                         href={buildShopLaunchUrl(nowPrinting.relativePath, "print")}
-                        className="rounded-xl bg-[#F4D400] px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#e3c400]"
+                        className="primary-btn !px-4 !py-2 !text-sm"
                       >
                         Print Local Copy
                       </a>
                       <a
                         href={buildShopLaunchUrl(nowPrinting.relativePath, "open")}
-                        className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#F7F7F8]"
+                        className="secondary-btn !px-4 !py-2 !text-sm"
                       >
                         Open Local File
                       </a>
@@ -307,7 +386,7 @@ export default async function AdminPage({
                           : buildPrintTabHref(nowPrinting.relativePath)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#F7F7F8]"
+                        className="secondary-btn !px-4 !py-2 !text-sm"
                       >
                         Browser Fallback
                       </Link>
@@ -318,7 +397,7 @@ export default async function AdminPage({
                         returnTo={queueReturnTo}
                         hiddenFields={{ autoAdvance: autoAdvanceEnabled ? "on" : "off" }}
                         buttonLabel="Done Printing"
-                        buttonClassName="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#F7F7F8]"
+                        buttonClassName="secondary-btn !px-4 !py-2 !text-sm"
                       />
 
                       <ConfirmActionForm
@@ -327,18 +406,18 @@ export default async function AdminPage({
                         returnTo={queueReturnTo}
                         confirmMessage="Return this job to pending queue?"
                         buttonLabel="Cancel Print"
-                        buttonClassName="rounded-xl border border-[#E53935]/40 bg-white px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#E53935]/10"
+                        buttonClassName="danger-btn !px-4 !py-2 !text-sm"
                       />
                     </div>
                   </article>
                 ) : (
-                  <p className="mt-4 rounded-xl border border-dashed border-[#E5E7EB] p-4 text-sm text-[#6B7280]">
+                  <p className="mt-4 rounded-[1rem] border border-dashed border-[#E5E7EB] p-4 text-sm text-[#6B7280]">
                     No active print job. Start one from the pending list.
                   </p>
                 )}
               </section>
 
-              <section className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+              <section className="rounded-[1.75rem] border border-[#E5E7EB] bg-white p-6 shadow-[0_6px_18px_rgba(20,23,31,0.05)]">
                 <h2 className="text-xl font-semibold text-[#111827]">Pending Queue</h2>
                 <p className="mt-1 text-sm text-[#6B7280]">All jobs waiting to start printing.</p>
 
@@ -359,7 +438,7 @@ export default async function AdminPage({
               </section>
             </section>
           ) : (
-            <section className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+            <section className="rounded-[1.75rem] border border-[#E5E7EB] bg-white p-6 shadow-[0_6px_18px_rgba(20,23,31,0.05)]">
               <h2 className="text-xl font-semibold text-[#111827]">Done Archive</h2>
               <p className="mt-1 text-sm text-[#6B7280]">Completed jobs stored in uploads/done.</p>
 
@@ -371,7 +450,7 @@ export default async function AdminPage({
                     .slice()
                     .reverse()
                     .map((job) => (
-                      <article key={job.relativePath} className="rounded-xl border border-[#E5E7EB] p-4">
+                      <article key={job.relativePath} className="rounded-[1rem] border border-[#E5E7EB] p-4">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                           <div>
                             <p className="text-sm font-semibold text-[#111827]">{job.metadata.name || "Unnamed job"}</p>
@@ -385,7 +464,7 @@ export default async function AdminPage({
                           <div className="flex flex-col gap-2 sm:flex-row">
                             <Link
                               href={buildPreviewHref("done", job.relativePath, autoAdvanceEnabled)}
-                              className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-medium text-[#111827] hover:bg-[#F7F7F8]"
+                              className="secondary-btn !px-4 !py-2 !text-sm !font-medium"
                             >
                               Preview
                             </Link>
@@ -395,7 +474,7 @@ export default async function AdminPage({
                               returnTo={doneReturnTo}
                               confirmMessage="Restore this completed job back to pending queue?"
                               buttonLabel="Restore"
-                              buttonClassName="rounded-xl border border-[#E53935]/40 bg-white px-4 py-2 text-sm font-semibold text-[#111827] hover:bg-[#E53935]/10"
+                              buttonClassName="danger-btn !px-4 !py-2 !text-sm"
                             />
                           </div>
                         </div>
@@ -405,19 +484,22 @@ export default async function AdminPage({
               )}
             </section>
           )}
+          </div>
 
-          {previewJob ? (
-            <PreviewPanel
-              title={previewJob.filename}
-              relativePath={previewJob.relativePath}
-              openLocalUrl={buildShopLaunchUrl(previewJob.relativePath, "open")}
-              printLocalUrl={buildShopLaunchUrl(previewJob.relativePath, "print")}
-            />
-          ) : (
-            <aside className="rounded-2xl border border-[#E5E7EB] bg-white p-4 text-sm text-[#6B7280] shadow-sm">
-              Select a job, then open Preview to view and print from this dashboard.
-            </aside>
-          )}
+          <div className="space-y-5">
+            {previewJob ? (
+              <PreviewPanel
+                title={previewJob.filename}
+                relativePath={previewJob.relativePath}
+                openLocalUrl={buildShopLaunchUrl(previewJob.relativePath, "open")}
+                printLocalUrl={buildShopLaunchUrl(previewJob.relativePath, "print")}
+              />
+            ) : (
+              <aside className="rounded-[1.75rem] border border-[#E5E7EB] bg-white p-5 text-sm text-[#6B7280] shadow-[0_6px_18px_rgba(20,23,31,0.05)]">
+                Select a job, then open Preview to view and print from this dashboard.
+              </aside>
+            )}
+          </div>
         </div>
       </section>
     </main>

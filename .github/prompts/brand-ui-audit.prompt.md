@@ -17,10 +17,12 @@ Audit the requested UI surfaces using the CJ NET yellow/red brand system.
 ## Project Constraints
 - Mobile-first layout
 - No visual overengineering
-- Clean and professional SaaS tone
+- Clean and professional tone
+- Distinctive brand feel without palette abuse
 
 ## Output Format
 1. Top 5 issues by severity
 2. File-level fixes with exact class or token recommendations
 3. Quick wins (can be done in under 30 minutes)
 4. Follow-up improvements (larger refactor items)
+5. Three palette-safe variation ideas if the page would benefit from redesign exploration

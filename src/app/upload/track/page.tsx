@@ -176,57 +176,33 @@ function UploadTrackPageContent() {
   }, [shouldPoll, loadStatus]);
 
   return (
-    <main className="min-h-screen bg-[#F7F7F8] px-4 py-6 sm:px-6 sm:py-8">
-      <section className="mx-auto w-full max-w-2xl space-y-4">
-        <header className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
-          <div className="h-1.5 w-full bg-[#F4D400]" />
-          <div className="p-5 sm:p-6">
-            <p className="inline-flex items-center gap-2 rounded-full bg-[#F7F7F8] px-3 py-1 text-xs font-semibold text-[#111827]">
-              <span className="h-2 w-2 rounded-full bg-[#E53935]" />
-              Show this page to staff if needed
-            </p>
-            <h1 className="mt-3 text-2xl font-semibold tracking-tight text-[#111827] sm:text-3xl">
-              Queue Status
-            </h1>
-            <p className="mt-2 text-sm text-[#6B7280]">Reference: {batchId || "-"}</p>
-            <p className="mt-1 inline-flex items-center gap-2 text-xs text-[#6B7280]">
-              <span className="h-2 w-2 rounded-full bg-[#F4D400]" />
-              Last updated {new Date(lastUpdatedAt).toLocaleTimeString()}
-            </p>
-
-            <div className="mt-4 grid gap-2 text-xs sm:grid-cols-3">
-              <div className="rounded-xl border border-[#E5E7EB] bg-[#F7F7F8] px-3 py-2 text-[#6B7280]">
-                1. Upload received
-              </div>
-              <div className="rounded-xl border border-[#E5E7EB] bg-[#F7F7F8] px-3 py-2 text-[#6B7280]">
-                2. Waiting in queue
-              </div>
-              <div className="rounded-xl border border-[#E5E7EB] bg-[#F7F7F8] px-3 py-2 text-[#6B7280]">
-                3. Staff confirms print
-              </div>
-            </div>
-          </div>
+    <main className="app-shell">
+      <section className="page-wrap customer-wrap space-y-4">
+        <header className="mx-auto w-full max-w-2xl rounded-[1.5rem] border border-[rgba(20,23,31,0.08)] bg-white p-5 shadow-[0_6px_18px_rgba(20,23,31,0.05)] sm:p-6">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#111827]">Queue status</h1>
+          <p className="mt-2 text-sm text-[#6B7280]">Reference: {batchId || "-"}</p>
+          <p className="mt-1 text-xs text-[#6B7280]">Last updated {new Date(lastUpdatedAt).toLocaleTimeString()}</p>
         </header>
 
         {errorMessage ? (
-          <div className="rounded-xl border border-[#E53935]/30 bg-[#E53935]/10 px-4 py-3 text-sm text-[#111827]">
+          <div className="mx-auto w-full max-w-2xl rounded-[1rem] border border-[#E53935]/30 bg-[#E53935]/10 px-4 py-3 text-sm text-[#111827]">
             {errorMessage}
           </div>
         ) : null}
 
-        <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
-          <h2 className="text-lg font-semibold text-[#111827]">Your batch progress</h2>
+        <section className="mx-auto w-full max-w-2xl rounded-[1.5rem] border border-[#E5E7EB] bg-white p-5 shadow-[0_6px_18px_rgba(20,23,31,0.05)] sm:p-6">
+          <h2 className="text-lg font-semibold text-[#111827]">Batch progress</h2>
 
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-xl border border-[#E5E7EB] bg-[#F7F7F8] p-3">
+            <div className="rounded-[1rem] border border-[#E5E7EB] bg-[#F9FAFB] p-3">
               <p className="text-xs text-[#6B7280]">Pending</p>
               <p className="text-lg font-semibold text-[#111827]">{summary.pendingCount}</p>
             </div>
-            <div className="rounded-xl border border-[#E5E7EB] bg-[#fff9d6] p-3">
+            <div className="rounded-[1rem] border border-[#F4D400]/35 bg-[#fff9d6] p-3">
               <p className="text-xs text-[#6B7280]">Printing</p>
               <p className="text-lg font-semibold text-[#111827]">{summary.printingCount}</p>
             </div>
-            <div className="rounded-xl border border-[#E5E7EB] bg-white p-3">
+            <div className="rounded-[1rem] border border-[#E5E7EB] bg-white p-3">
               <p className="text-xs text-[#6B7280]">Done</p>
               <p className="text-lg font-semibold text-[#111827]">{summary.doneCount}</p>
             </div>
@@ -238,7 +214,7 @@ function UploadTrackPageContent() {
             {jobs.map((job) => (
               <article
                 key={job.relativePath}
-                className={`rounded-xl border px-3 py-3 ${statusClass(job.status)}`}
+                className={`rounded-[1rem] border px-3 py-3 ${statusClass(job.status)}`}
               >
                 <p className="truncate text-sm font-semibold text-[#111827]" title={job.filename ?? job.relativePath}>
                   {normalizeDisplayFilename(job.filename ?? job.relativePath)}
@@ -260,15 +236,15 @@ function UploadTrackPageContent() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
-          <h2 className="text-lg font-semibold text-[#111827]">What happens next?</h2>
+        <section className="mx-auto w-full max-w-2xl rounded-[1.5rem] border border-[#E5E7EB] bg-white p-5 shadow-[0_6px_18px_rgba(20,23,31,0.05)] sm:p-6">
+          <h2 className="text-lg font-semibold text-[#111827]">What happens next</h2>
           <p className="mt-2 text-sm text-[#6B7280]">
             Staff handles jobs in order. Printing starts only after manual confirmation at the shop.
           </p>
         </section>
 
         {recentBatches.length > 0 ? (
-          <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
+          <section className="mx-auto w-full max-w-2xl rounded-[1.5rem] border border-[#E5E7EB] bg-white p-5 shadow-[0_6px_18px_rgba(20,23,31,0.05)] sm:p-6">
             <h2 className="text-lg font-semibold text-[#111827]">Recent uploads</h2>
             <p className="mt-1 text-sm text-[#6B7280]">Open one of your recent upload batches.</p>
 
@@ -277,7 +253,7 @@ function UploadTrackPageContent() {
                 <Link
                   key={batch.batchId}
                   href={`/upload/track?batch=${encodeURIComponent(batch.batchId)}`}
-                  className="block rounded-xl border border-[#E5E7EB] bg-white px-3 py-3 hover:bg-[#F7F7F8]"
+                  className="block rounded-[1rem] border border-[#E5E7EB] bg-white px-3 py-3 hover:border-[#F4D400]/70 hover:bg-[#fffbed]"
                 >
                   <p className="text-sm font-semibold text-[#111827]">{batch.batchId}</p>
                   <p className="mt-1 text-xs text-[#6B7280]">
@@ -292,10 +268,10 @@ function UploadTrackPageContent() {
           </section>
         ) : null}
 
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-2 sm:flex-row">
           <Link
             href="/upload"
-            className="inline-flex flex-1 items-center justify-center rounded-xl bg-[#F4D400] px-4 py-3 text-sm font-semibold text-[#111827] hover:bg-[#e3c400]"
+            className="primary-btn flex-1"
           >
             Upload More Files
           </Link>
@@ -304,13 +280,13 @@ function UploadTrackPageContent() {
             onClick={() => {
               void loadStatus();
             }}
-            className="inline-flex flex-1 items-center justify-center rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm font-semibold text-[#111827] hover:bg-[#F7F7F8]"
+            className="secondary-btn flex-1"
           >
             Refresh Status
           </button>
           <Link
             href="/"
-            className="inline-flex flex-1 items-center justify-center rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm font-semibold text-[#111827] hover:bg-[#F7F7F8]"
+            className="secondary-btn flex-1"
           >
             Back to Home
           </Link>
@@ -322,8 +298,8 @@ function UploadTrackPageContent() {
 
 function UploadTrackFallback() {
   return (
-    <main className="min-h-screen bg-[#F7F7F8] px-4 py-6 sm:px-6 sm:py-8">
-      <section className="mx-auto w-full max-w-2xl rounded-2xl border border-[#E5E7EB] bg-white p-6 text-sm text-[#6B7280] shadow-sm">
+    <main className="app-shell">
+      <section className="mx-auto w-full max-w-2xl rounded-[1.5rem] border border-[#E5E7EB] bg-white p-6 text-sm text-[#6B7280] shadow-[0_6px_18px_rgba(20,23,31,0.05)]">
         Loading queue status...
       </section>
     </main>

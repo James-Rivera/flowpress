@@ -1,9 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
-import { headers } from "next/headers";
 
-import { pickEmailComposeHref } from "@/lib/email-links";
+import { buildGmailIOSAppComposeUrl, buildGmailWebComposeUrl, buildMailtoUrl } from "@/lib/email-links";
 import { MessengerActionLink } from "@/app/_components/messenger-action-link";
+import { EmailActionLink } from "@/app/_components/email-action-link";
 
 function UploadIcon() {
   return (
@@ -41,9 +41,7 @@ function PhoneIcon() {
   );
 }
 
-export default async function Home() {
-  const userAgent = (await headers()).get("user-agent") ?? "";
-
+export default function Home() {
   const messengerWebHref = "https://m.me/cjnetvalley";
   const messengerAppHref = "fb-messenger://user-thread/cjnetvalley";
 
@@ -63,12 +61,9 @@ export default async function Home() {
     "Reminder: Please attach your file before sending.",
   ].join("\n");
 
-  const emailHref = pickEmailComposeHref({
-    to,
-    subject,
-    body,
-    userAgent,
-  });
+  const emailHrefDesktopWeb = buildGmailWebComposeUrl({ to, subject, body });
+  const emailHrefMailtoFallback = buildMailtoUrl({ to, subject, body });
+  const emailHrefGmailAppIOS = buildGmailIOSAppComposeUrl({ to, subject, body });
 
   const quickActions = [
     {
@@ -84,7 +79,7 @@ export default async function Home() {
       external: true,
     },
     {
-      href: emailHref,
+      href: emailHrefDesktopWeb,
       label: "Send via Email",
       icon: <MailIcon />,
       external: true,
@@ -138,6 +133,20 @@ export default async function Home() {
                     >
                       {content}
                     </MessengerActionLink>
+                  );
+                }
+
+                if (action.label === "Send via Email") {
+                  return (
+                    <EmailActionLink
+                      key={action.label}
+                      hrefWebDesktop={emailHrefDesktopWeb}
+                      hrefMailtoFallback={emailHrefMailtoFallback}
+                      hrefGmailAppIOS={emailHrefGmailAppIOS}
+                      className="utility-action-btn"
+                    >
+                      {content}
+                    </EmailActionLink>
                   );
                 }
 

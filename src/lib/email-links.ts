@@ -26,6 +26,17 @@ export function buildGmailWebComposeUrl({ to, subject, body }: EmailComposeParam
   )}&body=${encodeURIComponent(safeBody)}`;
 }
 
+export function buildGmailIOSAppComposeUrl({ to, subject, body }: EmailComposeParams) {
+  const params = new URLSearchParams();
+  params.set("to", to);
+  params.set("subject", subject);
+  if (body) {
+    params.set("body", body);
+  }
+
+  return `googlegmail://co?${params.toString()}`;
+}
+
 export function pickEmailComposeHref(params: EmailComposeParams & { userAgent: string }) {
   if (isMobileUserAgent(params.userAgent)) {
     return buildMailtoUrl(params);

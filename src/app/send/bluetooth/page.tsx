@@ -1,32 +1,41 @@
 import Image from "next/image";
 import Link from "next/link";
-import { headers } from "next/headers";
 
-import { pickEmailComposeHref } from "@/lib/email-links";
+import { EmailActionLink } from "@/app/_components/email-action-link";
+import { buildGmailIOSAppComposeUrl, buildGmailWebComposeUrl, buildMailtoUrl } from "@/lib/email-links";
 
-export default async function BluetoothSendGuidePage() {
-  const userAgent = (await headers()).get("user-agent") ?? "";
+export default function BluetoothSendGuidePage() {
+  const emailBody = [
+    "Hi CJ NET,",
+    "",
+    "Please print my file.",
+    "",
+    "Name:",
+    "Paper size (A4 / Short / Long):",
+    "Copies:",
+    "Color (B&W / Color):",
+    "Notes:",
+    "",
+    "Reminder: Please attach your file before sending.",
+  ].join("\n");
 
-  const emailHref = pickEmailComposeHref({
+  const emailHrefDesktopWeb = buildGmailWebComposeUrl({
     to: "cjnetvalley@gmail.com",
     subject: "CJ NET Print Request",
-    body: [
-      "Hi CJ NET,",
-      "",
-      "Please print my file.",
-      "",
-      "Name:",
-      "Paper size (A4 / Short / Long):",
-      "Copies:",
-      "Color (B&W / Color):",
-      "Notes:",
-      "",
-      "Reminder: Please attach your file before sending.",
-    ].join("\n"),
-    userAgent,
+    body: emailBody,
   });
 
-  const openInNewTab = emailHref.startsWith("http://") || emailHref.startsWith("https://");
+  const emailHrefMailtoFallback = buildMailtoUrl({
+    to: "cjnetvalley@gmail.com",
+    subject: "CJ NET Print Request",
+    body: emailBody,
+  });
+
+  const emailHrefGmailAppIOS = buildGmailIOSAppComposeUrl({
+    to: "cjnetvalley@gmail.com",
+    subject: "CJ NET Print Request",
+    body: emailBody,
+  });
 
   return (
     <main className="app-shell">
@@ -69,14 +78,14 @@ export default async function BluetoothSendGuidePage() {
               <Link href="/upload" className="primary-btn w-full">
                 Upload File
               </Link>
-              <a
-                href={emailHref}
-                target={openInNewTab ? "_blank" : undefined}
-                rel={openInNewTab ? "noopener noreferrer" : undefined}
+              <EmailActionLink
+                hrefWebDesktop={emailHrefDesktopWeb}
+                hrefMailtoFallback={emailHrefMailtoFallback}
+                hrefGmailAppIOS={emailHrefGmailAppIOS}
                 className="secondary-btn w-full"
               >
                 Send via Email
-              </a>
+              </EmailActionLink>
               <Link href="/" className="ghost-btn w-full">
                 Back to options
               </Link>

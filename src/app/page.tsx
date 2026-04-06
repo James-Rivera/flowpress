@@ -1,5 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
+import { headers } from "next/headers";
+
+import { pickEmailComposeHref } from "@/lib/email-links";
+import { MessengerActionLink } from "@/app/_components/messenger-action-link";
 
 function UploadIcon() {
   return (
@@ -37,10 +41,15 @@ function PhoneIcon() {
   );
 }
 
-export default function Home() {
-  const gmailTo = "cjnetvalley@gmail.com";
-  const gmailSubject = "CJ NET Print Request";
-  const gmailBody = [
+export default async function Home() {
+  const userAgent = (await headers()).get("user-agent") ?? "";
+
+  const messengerWebHref = "https://m.me/cjnetvalley";
+  const messengerAppHref = "fb-messenger://user-thread/cjnetvalley";
+
+  const to = "cjnetvalley@gmail.com";
+  const subject = "CJ NET Print Request";
+  const body = [
     "Hi CJ NET,",
     "",
     "Please print my file.",
@@ -54,9 +63,12 @@ export default function Home() {
     "Reminder: Please attach your file before sending.",
   ].join("\n");
 
-  const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
-    gmailTo
-  )}&su=${encodeURIComponent(gmailSubject)}&body=${encodeURIComponent(gmailBody)}`;
+  const emailHref = pickEmailComposeHref({
+    to,
+    subject,
+    body,
+    userAgent,
+  });
 
   const quickActions = [
     {
@@ -66,13 +78,13 @@ export default function Home() {
       external: false,
     },
     {
-      href: "https://m.me/cjnetvalley",
+      href: messengerWebHref,
       label: "Send via Messenger",
       icon: <MessageIcon />,
       external: true,
     },
     {
-      href: gmailComposeUrl,
+      href: emailHref,
       label: "Send via Email",
       icon: <MailIcon />,
       external: true,
@@ -116,12 +128,27 @@ export default function Home() {
               );
 
               if (action.external) {
+                if (action.href === messengerWebHref) {
+                  return (
+                    <MessengerActionLink
+                      key={action.label}
+                      hrefWeb={messengerWebHref}
+                      hrefApp={messengerAppHref}
+                      className="utility-action-btn"
+                    >
+                      {content}
+                    </MessengerActionLink>
+                  );
+                }
+
+                const openInNewTab = action.href.startsWith("http://") || action.href.startsWith("https://");
+
                 return (
                   <a
                     key={action.label}
                     href={action.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    target={openInNewTab ? "_blank" : undefined}
+                    rel={openInNewTab ? "noopener noreferrer" : undefined}
                     className="utility-action-btn"
                   >
                     {content}

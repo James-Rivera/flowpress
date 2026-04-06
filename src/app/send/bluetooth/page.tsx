@@ -1,7 +1,33 @@
 import Image from "next/image";
 import Link from "next/link";
+import { headers } from "next/headers";
 
-export default function BluetoothSendGuidePage() {
+import { pickEmailComposeHref } from "@/lib/email-links";
+
+export default async function BluetoothSendGuidePage() {
+  const userAgent = (await headers()).get("user-agent") ?? "";
+
+  const emailHref = pickEmailComposeHref({
+    to: "cjnetvalley@gmail.com",
+    subject: "CJ NET Print Request",
+    body: [
+      "Hi CJ NET,",
+      "",
+      "Please print my file.",
+      "",
+      "Name:",
+      "Paper size (A4 / Short / Long):",
+      "Copies:",
+      "Color (B&W / Color):",
+      "Notes:",
+      "",
+      "Reminder: Please attach your file before sending.",
+    ].join("\n"),
+    userAgent,
+  });
+
+  const openInNewTab = emailHref.startsWith("http://") || emailHref.startsWith("https://");
+
   return (
     <main className="app-shell">
       <section className="mx-auto w-full max-w-[560px] rounded-[1.5rem] border border-[rgba(20,23,31,0.08)] bg-white p-5 shadow-[0_6px_18px_rgba(20,23,31,0.05)] sm:p-6">
@@ -44,9 +70,9 @@ export default function BluetoothSendGuidePage() {
                 Upload File
               </Link>
               <a
-                href="https://mail.google.com/mail/?view=cm&fs=1&to=cjnetvalley%40gmail.com&su=CJ%20NET%20Print%20Request"
-                target="_blank"
-                rel="noopener noreferrer"
+                href={emailHref}
+                target={openInNewTab ? "_blank" : undefined}
+                rel={openInNewTab ? "noopener noreferrer" : undefined}
                 className="secondary-btn w-full"
               >
                 Send via Email

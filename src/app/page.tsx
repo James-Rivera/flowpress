@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { buildGmailIOSAppComposeUrl, buildGmailWebComposeUrl, buildMailtoUrl } from "@/lib/email-links";
+import { buildGmailAndroidIntentComposeUrl, buildGmailIOSAppComposeUrl, buildGmailWebComposeUrl, buildMailtoUrl } from "@/lib/email-links";
 import { MessengerActionLink } from "@/app/_components/messenger-action-link";
 import { EmailActionLink } from "@/app/_components/email-action-link";
 
@@ -61,6 +61,7 @@ export default function Home() {
   const emailHrefDesktopWeb = buildGmailWebComposeUrl({ to, subject, body });
   const emailHrefMailtoFallback = buildMailtoUrl({ to, subject, body });
   const emailHrefGmailAppIOS = buildGmailIOSAppComposeUrl({ to, subject, body });
+  const emailHrefGmailAppAndroid = buildGmailAndroidIntentComposeUrl({ to, subject, body });
 
   return (
     <main className="app-shell flex items-center justify-center">
@@ -93,6 +94,7 @@ export default function Home() {
               hrefWebDesktop={emailHrefDesktopWeb}
               hrefMailtoFallback={emailHrefMailtoFallback}
               hrefGmailAppIOS={emailHrefGmailAppIOS}
+              hrefGmailAppAndroid={emailHrefGmailAppAndroid}
               className="flex w-full items-center justify-center gap-3 rounded-2xl border border-surface-border bg-white px-4 py-4 text-sm font-bold text-foreground shadow-[0_1px_0_rgba(0,0,0,0.08)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(244,212,0,0.18)]"
             >
               <PlatformIcon src="/icons/gmail.svg" alt="Gmail" />

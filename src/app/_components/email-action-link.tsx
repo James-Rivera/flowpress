@@ -7,12 +7,17 @@ type Props = {
   hrefWebDesktop: string;
   hrefMailtoFallback: string;
   hrefGmailAppIOS: string;
+  hrefGmailAppAndroid?: string;
   className?: string;
   children: ReactNode;
 };
 
 function isIOSUserAgent(userAgent: string) {
   return /(iphone|ipad|ipod)/i.test(userAgent);
+}
+
+function isAndroidUserAgent(userAgent: string) {
+  return /android/i.test(userAgent);
 }
 
 function isMobileUserAgent(userAgent: string) {
@@ -23,6 +28,7 @@ export function EmailActionLink({
   hrefWebDesktop,
   hrefMailtoFallback,
   hrefGmailAppIOS,
+  hrefGmailAppAndroid,
   className,
   children,
 }: Props) {
@@ -34,7 +40,10 @@ export function EmailActionLink({
         return;
       }
 
-      if (!isIOSUserAgent(userAgent)) {
+      const shouldHandleIOS = isIOSUserAgent(userAgent);
+      const shouldHandleAndroid = isAndroidUserAgent(userAgent) && Boolean(hrefGmailAppAndroid);
+
+      if (!shouldHandleIOS && !shouldHandleAndroid) {
         return;
       }
 
@@ -58,9 +67,9 @@ export function EmailActionLink({
         window.location.assign(hrefMailtoFallback);
       }, 800);
 
-      window.location.assign(hrefGmailAppIOS);
+      window.location.assign(shouldHandleIOS ? hrefGmailAppIOS : (hrefGmailAppAndroid as string));
     },
-    [hrefGmailAppIOS, hrefMailtoFallback]
+    [hrefGmailAppAndroid, hrefGmailAppIOS, hrefMailtoFallback]
   );
 
   return (

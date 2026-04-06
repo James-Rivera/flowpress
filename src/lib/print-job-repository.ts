@@ -8,7 +8,11 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { BlobNotFoundError, BlobPreconditionFailedError, copy, del, get, head, list, put } from "@vercel/blob";
 import {
   getBatchesDir,
@@ -73,6 +77,13 @@ const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
 const TEXT_EXTENSIONS = new Set([".txt", ".md", ".csv", ".json", ".log"]);
 const OFFICE_EXTENSIONS = new Set([".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"]);
 const jobLocks = new Map<string, Promise<void>>();
+
+async function writeWebFileToDisk(file: File, targetPath: string) {
+  await pipeline(
+    Readable.fromWeb(file.stream() as unknown as NodeReadableStream<Uint8Array>),
+    createWriteStream(targetPath)
+  );
+}
 
 export function getActiveStorageDriver(): StorageDriver {
   return getStorageDriver();
@@ -853,9 +864,8 @@ export async function storeUploadedBatch({
     const uniqueFileName = `${Date.now()}-${batchId}-${index}-${originalName}`;
     const savePath = path.join(targetFolderPath, uniqueFileName);
     const metadataPath = path.join(targetFolderPath, `${uniqueFileName}.json`);
-    const buffer = Buffer.from(await file.arrayBuffer());
 
-    await writeFile(savePath, buffer);
+    await writeWebFileToDisk(file, savePath);
     await writeMetadata(metadataPath, {
       name: customerName,
       size: size || String(file.size),

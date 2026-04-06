@@ -37,6 +37,19 @@ export function buildGmailIOSAppComposeUrl({ to, subject, body }: EmailComposePa
   return `googlegmail://co?${params.toString()}`;
 }
 
+export function buildGmailAndroidIntentComposeUrl({ to, subject, body }: EmailComposeParams) {
+  const params = new URLSearchParams();
+  params.set("to", to);
+  params.set("subject", subject);
+  if (body) {
+    params.set("body", body);
+  }
+
+  // Android Chrome supports `intent:` URLs. If Gmail is installed, this should open the Gmail app
+  // directly. If it's not installed (or the browser blocks intent), callers should fall back to `mailto:`.
+  return `intent://co?${params.toString()}#Intent;scheme=googlegmail;package=com.google.android.gm;end`;
+}
+
 export function pickEmailComposeHref(params: EmailComposeParams & { userAgent: string }) {
   if (isMobileUserAgent(params.userAgent)) {
     return buildMailtoUrl(params);

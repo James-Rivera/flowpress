@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type DragEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { getPublicApiUrl } from "@/lib/public-api";
 import { getClientUploadLimits, validateUploadFiles } from "@/lib/upload-rules";
@@ -20,6 +20,26 @@ type UploadedJob = {
 const SIZE_OPTIONS = ["A4", "Short", "Long"] as const;
 const COLOR_OPTIONS = ["B&W", "Color"] as const;
 const UPLOAD_LIMITS = getClientUploadLimits();
+
+const MOBILE_SOFT_WARNING_MB = 20;
+const LOW_MEMORY_HARD_LIMIT_MB = 25;
+
+function detectMobileUserAgent(userAgent: string, maxTouchPoints: number) {
+  if (/Android/i.test(userAgent)) {
+    return true;
+  }
+
+  if (/iPhone|iPad|iPod/i.test(userAgent)) {
+    return true;
+  }
+
+  // iPadOS 13+ reports as Macintosh but has touch.
+  if (/Macintosh/i.test(userAgent) && maxTouchPoints > 1) {
+    return true;
+  }
+
+  return false;
+}
 
 function mergeFiles(existing: File[], incoming: File[]) {
   const map = new Map<string, File>();
@@ -54,11 +74,36 @@ export default function UploadPage() {
   const [submitState, setSubmitState] = useState<SubmitState>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [clientHints, setClientHints] = useState<{
+    isMobile: boolean;
+    deviceMemoryGb: number | null;
+    isLowMemoryDevice: boolean;
+  } | null>(null);
   const [name, setName] = useState("");
   const [size, setSize] = useState<(typeof SIZE_OPTIONS)[number]>("A4");
   const [copies, setCopies] = useState(1);
   const [color, setColor] = useState<(typeof COLOR_OPTIONS)[number]>("B&W");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try {
+      const userAgent = navigator.userAgent || "";
+      const maxTouchPoints = navigator.maxTouchPoints ?? 0;
+      const isMobile = detectMobileUserAgent(userAgent, maxTouchPoints);
+      const deviceMemoryGbRaw = (navigator as unknown as { deviceMemory?: unknown }).deviceMemory;
+      const deviceMemoryGb = typeof deviceMemoryGbRaw === "number" && Number.isFinite(deviceMemoryGbRaw)
+        ? deviceMemoryGbRaw
+        : null;
+
+      setClientHints({
+        isMobile,
+        deviceMemoryGb,
+        isLowMemoryDevice: deviceMemoryGb !== null && deviceMemoryGb <= 2,
+      });
+    } catch {
+      setClientHints({ isMobile: false, deviceMemoryGb: null, isLowMemoryDevice: false });
+    }
+  }, []);
 
   const colorHint =
     color === "Color"
@@ -72,7 +117,24 @@ export default function UploadPage() {
 
     setSelectedFiles((current) => {
       const merged = mergeFiles(current, files);
-      const validationError = validateFiles(merged);
+      const validationError = (() => {
+        const baseError = validateFiles(merged);
+
+        if (baseError) {
+          return baseError;
+        }
+
+        if (clientHints?.isLowMemoryDevice) {
+          const hardLimitBytes = LOW_MEMORY_HARD_LIMIT_MB * 1024 * 1024;
+          const tooLarge = merged.find((file) => file.size > hardLimitBytes);
+
+          if (tooLarge) {
+            return `This phone may run out of memory on very large files. Please keep each file under ${LOW_MEMORY_HARD_LIMIT_MB}MB, or send it using Gmail/Messenger instead.`;
+          }
+        }
+
+        return null;
+      })();
 
       if (validationError) {
         setSubmitState({ tone: "error", message: validationError });
@@ -127,7 +189,24 @@ export default function UploadPage() {
       return;
     }
 
-    const filesError = validateFiles(selectedFiles);
+    const filesError = (() => {
+      const baseError = validateFiles(selectedFiles);
+
+      if (baseError) {
+        return baseError;
+      }
+
+      if (clientHints?.isLowMemoryDevice) {
+        const hardLimitBytes = LOW_MEMORY_HARD_LIMIT_MB * 1024 * 1024;
+        const tooLarge = selectedFiles.find((file) => file.size > hardLimitBytes);
+
+        if (tooLarge) {
+          return `This phone may run out of memory on very large files. Please keep each file under ${LOW_MEMORY_HARD_LIMIT_MB}MB, or send it using Gmail/Messenger instead.`;
+        }
+      }
+
+      return null;
+    })();
 
     if (filesError) {
       setSubmitState({
@@ -205,6 +284,11 @@ export default function UploadPage() {
       ? "border-[#E53935]/20 bg-[#fff0ef] text-foreground"
       : "border-[#F4D400]/30 bg-[#fff7d0] text-foreground";
 
+  const largestSelectedFileBytes = selectedFiles.reduce((largest, file) => Math.max(largest, file.size), 0);
+  const shouldShowMobileLargeFileWarning =
+    Boolean(clientHints?.isMobile) &&
+    largestSelectedFileBytes >= MOBILE_SOFT_WARNING_MB * 1024 * 1024;
+
   return (
     <main className="app-shell">
       {isRedirecting ? (
@@ -245,6 +329,16 @@ export default function UploadPage() {
           <section className="section-card rounded-[1.5rem] p-5 sm:p-6">
             <h2 className="text-base font-semibold text-[#111827]">Files</h2>
             <p className="mt-1 text-sm text-[#6B7280]">Tap to choose files, or drag them here.</p>
+
+            {shouldShowMobileLargeFileWarning ? (
+              <div
+                className="mt-4 rounded-[1rem] border border-[rgba(23,23,23,0.1)] bg-[rgba(255,248,230,0.72)] px-4 py-3 text-sm text-foreground"
+                role="status"
+                aria-live="polite"
+              >
+                Large PDFs can fail to upload on some phones due to low memory. If it won&apos;t send, close other apps, try fewer files, or use Gmail/Messenger to send it instead.
+              </div>
+            ) : null}
 
             <label
               htmlFor="file"

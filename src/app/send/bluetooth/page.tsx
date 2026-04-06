@@ -4,6 +4,23 @@ import Link from "next/link";
 import { EmailActionLink } from "@/app/_components/email-action-link";
 import { buildGmailIOSAppComposeUrl, buildGmailWebComposeUrl, buildMailtoUrl } from "@/lib/email-links";
 
+function StepDot() {
+  return <span className="mt-2 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-text-secondary" aria-hidden="true" />;
+}
+
+function PlatformMiniIcon({ src }: { src: string }) {
+  return (
+    <Image
+      src={src}
+      alt=""
+      width={16}
+      height={16}
+      className="h-4 w-4"
+      aria-hidden="true"
+    />
+  );
+}
+
 export default function BluetoothSendGuidePage() {
   const emailBody = [
     "Hi CJ NET,",
@@ -39,58 +56,76 @@ export default function BluetoothSendGuidePage() {
 
   return (
     <main className="app-shell">
-      <section className="mx-auto w-full max-w-[560px] rounded-[1.5rem] border border-[rgba(20,23,31,0.08)] bg-white p-5 shadow-[0_6px_18px_rgba(20,23,31,0.05)] sm:p-6">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="h-10 w-10 shrink-0 rounded-[0.9rem] border border-[#E5E7EB] bg-white p-2">
-            <Image src="/logo.svg" alt="CJ NET shop logo" width={64} height={64} className="h-full w-full" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-[#111827]">In-shop transfer</h1>
-            <p className="mt-0.5 text-sm text-[#6B7280]">Use this when staff is helping you send a file from your phone.</p>
-          </div>
-        </div>
+      <section className="page-wrap customer-wrap">
+        <div className="mx-auto w-full max-w-[560px]">
+          <header className="px-1">
+            <h1 className="display-title text-2xl font-semibold tracking-tight text-foreground">In-shop transfer</h1>
+            <p className="mt-1 text-sm font-medium text-text-secondary">Ask staff to help you send your file</p>
+          </header>
 
-        <div className="space-y-4">
-          <div className="rounded-[1rem] border border-[#E5E7EB] bg-[#F9FAFB] p-4">
-            <h2 className="text-sm font-semibold text-[#111827]">Android</h2>
-            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-[#111827]">
-              <li>Turn on Bluetooth on your phone.</li>
-              <li>Open the file, then tap Share.</li>
-              <li>Select Bluetooth.</li>
-              <li>Choose the CJ NET device. Ask staff for the device name if needed.</li>
-              <li>Tap Send, then wait for staff to accept the file.</li>
-            </ol>
-          </div>
-
-          <div className="rounded-[1rem] border border-[#E5E7EB] bg-white p-4">
-            <h2 className="text-sm font-semibold text-[#111827]">iPhone</h2>
-            <p className="mt-2 text-sm text-[#111827]">
-              iPhone usually uses <span className="font-semibold">AirDrop</span> for file sharing. Bluetooth transfer is
-              limited on iOS, so ask staff to help you use AirDrop instead.
-            </p>
-            <p className="mt-2 text-sm text-[#6B7280]">If AirDrop is not available, use Upload File or Email.</p>
-          </div>
-
-          <div className="rounded-[1rem] border border-[#E5E7EB] bg-white p-4">
-            <h2 className="text-sm font-semibold text-[#111827]">If transfer is not working</h2>
-            <p className="mt-2 text-sm text-[#6B7280]">Use one of these instead:</p>
-            <div className="mt-3 flex flex-col gap-3">
-              <Link href="/upload" className="primary-btn w-full">
-                Upload File
-              </Link>
-              <EmailActionLink
-                hrefWebDesktop={emailHrefDesktopWeb}
-                hrefMailtoFallback={emailHrefMailtoFallback}
-                hrefGmailAppIOS={emailHrefGmailAppIOS}
-                className="secondary-btn w-full"
-              >
-                Send via Email
-              </EmailActionLink>
-              <Link href="/" className="ghost-btn w-full">
-                Back to options
-              </Link>
+          <section className="mt-4 rounded-[1.25rem] border border-surface-border bg-surface-card shadow-[0_6px_18px_rgba(20,23,31,0.05)]">
+            <div className="px-5 py-4 sm:px-6">
+              <h2 className="flex items-center gap-2 text-sm font-extrabold tracking-wide text-foreground">
+                <PlatformMiniIcon src="/icons/android.svg" />
+                <span>Android</span>
+              </h2>
+              <ul className="mt-2 space-y-1.5 text-sm font-medium text-foreground">
+                <li className="flex items-start gap-2">
+                  <StepDot />
+                  <span>Turn on Bluetooth</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <StepDot />
+                  <span>Tap Share → Bluetooth</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <StepDot />
+                  <span>Select SERVER1 device</span>
+                </li>
+              </ul>
             </div>
-          </div>
+
+            <div className="h-px w-full bg-surface-border" />
+
+            <div className="px-5 py-4 sm:px-6">
+              <h2 className="flex items-center gap-2 text-sm font-extrabold tracking-wide text-foreground">
+                <PlatformMiniIcon src="/icons/apple.svg" />
+                <span>iPhone</span>
+              </h2>
+              <ul className="mt-2 space-y-1.5 text-sm font-medium text-foreground">
+                <li className="flex items-start gap-2">
+                  <StepDot />
+                  <span>Use AirDrop</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <StepDot />
+                  <span>Ask staff if needed</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="h-px w-full bg-surface-border" />
+
+            <div className="px-5 py-4 sm:px-6">
+              <h2 className="text-sm font-extrabold tracking-wide text-foreground">Not working?</h2>
+              <div className="mt-3 flex flex-col gap-3">
+                <Link href="/upload" className="primary-btn w-full min-h-[56px] text-base">
+                  Upload Files
+                </Link>
+                <EmailActionLink
+                  hrefWebDesktop={emailHrefDesktopWeb}
+                  hrefMailtoFallback={emailHrefMailtoFallback}
+                  hrefGmailAppIOS={emailHrefGmailAppIOS}
+                  className="secondary-btn w-full min-h-[56px] text-base"
+                >
+                  Send via Email
+                </EmailActionLink>
+                <Link href="/" className="ghost-btn w-full min-h-[56px] text-base">
+                  Back
+                </Link>
+              </div>
+            </div>
+          </section>
         </div>
       </section>
     </main>

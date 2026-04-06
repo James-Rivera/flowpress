@@ -202,16 +202,16 @@ export default function UploadPage() {
 
   const submitStateClassName =
     submitState?.tone === "error"
-      ? "border-[#E53935]/20 bg-[#fff0ef] text-[#171717]"
-      : "border-[#F4D400]/30 bg-[#fff7d0] text-[#171717]";
+      ? "border-[#E53935]/20 bg-[#fff0ef] text-foreground"
+      : "border-[#F4D400]/30 bg-[#fff7d0] text-foreground";
 
   return (
     <main className="app-shell">
       {isRedirecting ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#f6f7f9]/90 px-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 px-4 backdrop-blur-sm">
           <section className="glass-card w-full max-w-md rounded-[1.5rem] p-7 text-center">
             <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#e5e7eb] border-t-[#F4D400]" />
-            <h2 className="display-title mt-5 text-3xl font-semibold text-[#171717]">Upload received</h2>
+            <h2 className="display-title mt-5 text-3xl font-semibold text-foreground">Upload received</h2>
             <p className="mt-2 text-sm text-[#5F5B52]">Opening your batch tracker now...</p>
           </section>
         </div>
@@ -220,13 +220,13 @@ export default function UploadPage() {
       <section className="page-wrap customer-wrap space-y-4">
         <header className="mx-auto w-full max-w-3xl rounded-[1.5rem] border border-[rgba(20,23,31,0.08)] bg-white p-5 shadow-[0_6px_18px_rgba(20,23,31,0.05)] sm:p-6">
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-[#171717]">Upload file</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Upload file</h1>
             <Link href="/" className="secondary-btn !px-4 !py-2 !text-sm">
               Back
             </Link>
           </div>
-          <p className="mt-2 text-sm text-[#5F6778]">Add your file, enter the details, then send it to the queue.</p>
-          <p className="mt-3 text-xs text-[#5F6778]">
+          <p className="mt-2 text-sm text-text-secondary">Add your file, enter the details, then send it to the queue.</p>
+          <p className="mt-3 text-xs text-text-secondary">
             Up to {UPLOAD_LIMITS.maxFileCount} files, {UPLOAD_LIMITS.maxFileSizeMb}MB each, {UPLOAD_LIMITS.maxBatchSizeMb}MB total.
           </p>
         </header>
@@ -417,7 +417,7 @@ export default function UploadPage() {
             </button>
           </div>
 
-          <p className="text-center text-xs text-[#5F6778]">
+          <p className="text-center text-xs text-text-secondary">
             Staff reviews each request before printing starts.
           </p>
         </form>

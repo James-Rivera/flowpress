@@ -4,6 +4,7 @@ import { createWriteStream } from "node:fs";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
+import type { ReadableStream as NodeWebReadableStream } from "node:stream/web";
 import { NextRequest, NextResponse } from "next/server";
 import Busboy from "busboy";
 import { withPublicApiCors, buildPublicApiOptionsResponse } from "@/lib/public-api-response";
@@ -224,7 +225,7 @@ async function storeFilesystemUploadStreaming(request: NextRequest, batchId: str
     });
   });
 
-  const nodeStream = Readable.fromWeb(request.body);
+  const nodeStream = Readable.fromWeb(request.body as unknown as NodeWebReadableStream<Uint8Array>);
   nodeStream.pipe(busboy);
 
   await finished;

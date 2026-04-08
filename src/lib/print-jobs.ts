@@ -16,6 +16,7 @@ export {
   getStorageDriver,
   getTmpDir,
   getUploadRetentionHours,
+  getUploadsDir,
   getUploadsRootDir,
 } from "@/lib/print-job-config";
 export {

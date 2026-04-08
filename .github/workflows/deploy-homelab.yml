@@ -14,6 +14,22 @@ jobs:
     runs-on: [self-hosted, Linux, homelab]
 
     steps:
+      - name: Runner diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "whoami=$(whoami)"
+          id
+          echo "pwd=$(pwd)"
+          command -v docker || true
+          docker version
+          docker compose version || true
+          ls -la /opt || true
+          ls -la /opt/flowpress || true
+          ls -la /opt/flowpress/app || true
+          test -r /opt/flowpress/app && echo "/opt/flowpress/app is readable" || echo "/opt/flowpress/app is NOT readable"
+          test -w /opt/flowpress/app && echo "/opt/flowpress/app is writable" || echo "/opt/flowpress/app is NOT writable"
+
       - name: Verify docker is available
         run: docker version
 
@@ -21,7 +37,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          set -x
           cd /opt/flowpress/app
+
+          # Avoid Git's "dubious ownership" failure when the repo owner differs.
+          git config --global --add safe.directory /opt/flowpress/app
 
           git fetch --all --prune
           git checkout main

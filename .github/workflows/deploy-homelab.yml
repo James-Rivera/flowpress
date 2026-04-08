@@ -1,0 +1,33 @@
+name: Deploy to Homelab
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: homelab-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Update /opt/flowpress/app and restart containers
+    runs-on: [self-hosted, linux, homelab]
+
+    steps:
+      - name: Verify docker is available
+        run: docker version
+
+      - name: Pull latest code and rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /opt/flowpress/app
+
+          git fetch --all --prune
+          git checkout main
+          git reset --hard origin/main
+
+          docker compose up -d --build
+
+      - name: Show running containers
+        run: docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'

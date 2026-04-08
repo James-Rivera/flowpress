@@ -11,7 +11,7 @@ concurrency:
 jobs:
   deploy:
     name: Update /opt/flowpress/app and restart containers
-    runs-on: [self-hosted, linux, homelab]
+    runs-on: [self-hosted, Linux, homelab]
 
     steps:
       - name: Verify docker is available

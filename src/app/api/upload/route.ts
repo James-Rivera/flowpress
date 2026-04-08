@@ -287,10 +287,29 @@ export async function POST(request: NextRequest) {
     const useStreamingFilesystemUploads =
       process.env.UPLOAD_STREAMING === "1" && getStorageDriver() === "filesystem";
 
+    if (shouldDebugTiming) {
+      console.info("[api/upload] started", {
+        batchId,
+        streaming: useStreamingFilesystemUploads,
+        contentLength: request.headers.get("content-length"),
+        contentType: request.headers.get("content-type"),
+      });
+    }
+
     if (useStreamingFilesystemUploads) {
       const totalStart = performance.now();
       const { jobs } = await storeFilesystemUploadStreaming(request, batchId);
       const totalMs = performance.now() - totalStart;
+
+      if (shouldDebugTiming) {
+        console.info("[api/upload] completed", {
+          batchId,
+          streaming: true,
+          uploadedCount: jobs.length,
+          totalMs: Number(totalMs.toFixed(1)),
+        });
+      }
+
       const response = NextResponse.json({
         success: true,
         batchId,
@@ -358,6 +377,17 @@ export async function POST(request: NextRequest) {
     });
     const storeMs = performance.now() - storeStart;
     const endToEndMs = performance.now() - start;
+
+    if (shouldDebugTiming) {
+      console.info("[api/upload] completed", {
+        batchId,
+        streaming: false,
+        uploadedCount: jobs.length,
+        formDataMs: Number(formDataMs.toFixed(1)),
+        storeMs: Number(storeMs.toFixed(1)),
+        totalMs: Number(endToEndMs.toFixed(1)),
+      });
+    }
 
     const response = NextResponse.json({
       success: true,

@@ -71,6 +71,10 @@ export default function UploadPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [submitSnapshot, setSubmitSnapshot] = useState<{
+    fileCount: number;
+    totalBytes: number;
+  } | null>(null);
   const [submitState, setSubmitState] = useState<SubmitState>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -225,6 +229,10 @@ export default function UploadPage() {
     }
 
     setIsSubmitting(true);
+    setSubmitSnapshot({
+      fileCount: selectedFiles.length,
+      totalBytes: selectedFiles.reduce((sum, file) => sum + file.size, 0),
+    });
     setSubmitState(null);
 
     const formData = new FormData();
@@ -279,6 +287,17 @@ export default function UploadPage() {
     }
   };
 
+  const submittingDetails = (() => {
+    if (!submitSnapshot) {
+      return null;
+    }
+
+    const totalMb = submitSnapshot.totalBytes / (1024 * 1024);
+    const prettyTotal = totalMb >= 10 ? `${Math.round(totalMb)}MB` : `${totalMb.toFixed(1)}MB`;
+    const fileLabel = submitSnapshot.fileCount === 1 ? "file" : "files";
+    return `Uploading ${submitSnapshot.fileCount} ${fileLabel} (${prettyTotal})...`;
+  })();
+
   const submitStateClassName =
     submitState?.tone === "error"
       ? "border-[#E53935]/20 bg-[#fff0ef] text-foreground"
@@ -291,12 +310,27 @@ export default function UploadPage() {
 
   return (
     <main className="app-shell">
-      {isRedirecting ? (
+      {isSubmitting || isRedirecting ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 px-4 backdrop-blur-sm">
-          <section className="glass-card w-full max-w-md rounded-[1.5rem] p-7 text-center">
+          <section className="glass-card w-full max-w-md rounded-[1.5rem] p-7 text-center" role="status" aria-live="polite">
             <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#e5e7eb] border-t-[#F4D400]" />
-            <h2 className="display-title mt-5 text-3xl font-semibold text-foreground">Upload received</h2>
-            <p className="mt-2 text-sm text-[#5F5B52]">Opening your batch tracker now...</p>
+
+            {isRedirecting ? (
+              <>
+                <h2 className="display-title mt-5 text-3xl font-semibold text-foreground">Upload received</h2>
+                <p className="mt-2 text-sm text-[#5F5B52]">Opening your batch tracker now...</p>
+              </>
+            ) : (
+              <>
+                <h2 className="display-title mt-5 text-3xl font-semibold text-foreground">Uploading…</h2>
+                <p className="mt-2 text-sm text-[#5F5B52]">
+                  {submittingDetails ?? "Sending your files to the queue…"}
+                </p>
+                <p className="mt-3 text-xs text-[#5F5B52]">
+                  Large PDFs can take a minute. Please keep this screen open.
+                </p>
+              </>
+            )}
           </section>
         </div>
       ) : null}

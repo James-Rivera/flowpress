@@ -123,14 +123,16 @@ function QueueItem({
   return (
     <article className="rounded-[1rem] border border-[#E5E7EB] bg-white p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-[#111827]">{job.metadata.name || "Unnamed job"}</p>
-          <p className="mt-1 text-xs text-[#6B7280]">{job.filename}</p>
+          <p className="mt-1 break-words text-xs text-[#6B7280]" title={job.filename}>
+            {job.filename}
+          </p>
           <p className="mt-2 text-sm text-[#111827]">{formatJobMeta(job)}</p>
           <p className="mt-1 text-xs text-[#6B7280]">Submitted {formatTimestamp(job.timestamp)}</p>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
           <Link
             href={buildPreviewHref("queue", job.relativePath, autoAdvanceEnabled)}
             className="secondary-btn !px-4 !py-2 !text-sm !font-medium"
@@ -452,16 +454,18 @@ export default async function AdminPage({
                     .map((job) => (
                       <article key={job.relativePath} className="rounded-[1rem] border border-[#E5E7EB] p-4">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                          <div>
+                          <div className="min-w-0 flex-1">
                             <p className="text-sm font-semibold text-[#111827]">{job.metadata.name || "Unnamed job"}</p>
-                            <p className="mt-1 text-xs text-[#6B7280]">{job.filename}</p>
+                            <p className="mt-1 break-words text-xs text-[#6B7280]" title={job.filename}>
+                              {job.filename}
+                            </p>
                             <p className="mt-2 text-sm text-[#111827]">
                               {job.metadata.size || "-"} • {job.metadata.copies || "-"} copies • {job.metadata.color || "-"}
                             </p>
                             <p className="mt-1 text-xs text-[#6B7280]">Completed {formatTimestamp(job.timestamp)}</p>
                           </div>
 
-                          <div className="flex flex-col gap-2 sm:flex-row">
+                          <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
                             <Link
                               href={buildPreviewHref("done", job.relativePath, autoAdvanceEnabled)}
                               className="secondary-btn !px-4 !py-2 !text-sm !font-medium"

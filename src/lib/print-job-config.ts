@@ -106,6 +106,11 @@ export function getBatchesDir() {
   return path.join(resolveBaseUploadsDir(), "_batches");
 }
 
+export function getMetadataDir(bucket: "active" | "done") {
+  logResolvedStorageRootOnce();
+  return path.join(resolveBaseUploadsDir(), "_meta", bucket);
+}
+
 export function getTmpDir() {
   logResolvedStorageRootOnce();
   return path.join(resolveBaseUploadsDir(), "tmp");

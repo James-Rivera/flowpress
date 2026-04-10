@@ -36,6 +36,9 @@ type JobMetadata = {
   copies: string;
   color: string;
   folder: string;
+  batchId?: string;
+  uploadIndex?: number;
+  originalFilename?: string;
   status: JobStatus;
 };
 
@@ -54,6 +57,7 @@ export type BatchManifest = {
   jobs: Array<{
     filename: string;
     relativePath: string;
+    uploadIndex?: number;
     status: "pending";
   }>;
 };
@@ -79,10 +83,10 @@ const TEXT_EXTENSIONS = new Set([".txt", ".md", ".csv", ".json", ".log"]);
 const OFFICE_EXTENSIONS = new Set([".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"]);
 const jobLocks = new Map<string, Promise<void>>();
 
-async function writeWebFileToDisk(file: File, targetPath: string) {
+async function writeWebFileToDisk(file: File, targetPath: string, exclusive = false) {
   await pipeline(
     Readable.fromWeb(file.stream() as unknown as NodeReadableStream<Uint8Array>),
-    createWriteStream(targetPath)
+    createWriteStream(targetPath, exclusive ? { flags: "wx" } : undefined)
   );
 }
 
@@ -160,6 +164,162 @@ async function fileExists(filePath: string) {
   }
 }
 
+function sanitizeUploadedFilename(filename: string) {
+  return filename
+    .replace(/\\/g, "")
+    .replace(/\//g, "")
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9._()-]/g, "");
+}
+
+function buildCandidateRelativePath(folder: string, originalName: string, attempt: number) {
+  const normalizedFolder = sanitizeFolderName(folder);
+  const parsed = path.parse(originalName);
+  const baseName = parsed.name.trim() || "upload";
+  const extension = parsed.ext || "";
+  const candidateName =
+    attempt === 0 ? `${baseName}${extension}` : `${baseName} (${attempt + 1})${extension}`;
+
+  return `${normalizedFolder}/${candidateName}`;
+}
+
+function isAlreadyExistsError(error: unknown) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+  ) {
+    const code = String((error as { code: string }).code);
+    if (code === "EEXIST" || code === "ERR_BLOB_FILE_ALREADY_EXISTS") {
+      return true;
+    }
+  }
+
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    message.includes("already exists") ||
+    message.includes("eexist") ||
+    message.includes("conflict")
+  );
+}
+
+async function storeBlobFileWithUniqueName(
+  bucket: JobBucket,
+  folder: string,
+  originalName: string,
+  file: File
+) {
+  let attempt = 0;
+
+  while (true) {
+    const relativePath = buildCandidateRelativePath(folder, originalName, attempt);
+
+    try {
+      await put(getBlobFilePath(bucket, relativePath), file, {
+        access: "private",
+        addRandomSuffix: false,
+        allowOverwrite: false,
+        contentType: file.type || getMimeType(originalName),
+        multipart: file.size > 5 * 1024 * 1024,
+      });
+
+      return relativePath;
+    } catch (error) {
+      if (!isAlreadyExistsError(error)) {
+        throw error;
+      }
+
+      attempt += 1;
+    }
+  }
+}
+
+async function storeFilesystemFileWithUniqueName(
+  bucket: JobBucket,
+  folder: string,
+  originalName: string,
+  file: File
+) {
+  const root = bucket === "done" ? getDoneDir() : getUploadsDir();
+  let attempt = 0;
+
+  while (true) {
+    const relativePath = buildCandidateRelativePath(folder, originalName, attempt);
+    const savePath = path.join(root, relativePath);
+
+    try {
+      await mkdir(path.dirname(savePath), { recursive: true });
+      await writeWebFileToDisk(file, savePath, true);
+      return relativePath;
+    } catch (error) {
+      if (!isAlreadyExistsError(error)) {
+        throw error;
+      }
+
+      attempt += 1;
+    }
+  }
+}
+
+async function copyBlobToUniquePath(
+  sourcePathname: string,
+  bucket: JobBucket,
+  folder: string,
+  originalName: string,
+  contentType: string
+) {
+  let attempt = 0;
+
+  while (true) {
+    const relativePath = buildCandidateRelativePath(folder, originalName, attempt);
+
+    try {
+      await copy(sourcePathname, getBlobFilePath(bucket, relativePath), {
+        access: "private",
+        allowOverwrite: false,
+        addRandomSuffix: false,
+        contentType,
+      });
+
+      return relativePath;
+    } catch (error) {
+      if (!isAlreadyExistsError(error)) {
+        throw error;
+      }
+
+      attempt += 1;
+    }
+  }
+}
+
+async function moveFilesystemFileToUniquePath(
+  sourcePath: string,
+  bucket: JobBucket,
+  folder: string,
+  originalName: string
+) {
+  const root = bucket === "done" ? getDoneDir() : getUploadsDir();
+  let attempt = 0;
+
+  while (true) {
+    const relativePath = buildCandidateRelativePath(folder, originalName, attempt);
+    const targetPath = path.join(root, relativePath);
+
+    try {
+      await mkdir(path.dirname(targetPath), { recursive: true });
+      await rename(sourcePath, targetPath);
+      return relativePath;
+    } catch (error) {
+      if (!isAlreadyExistsError(error)) {
+        throw error;
+      }
+
+      attempt += 1;
+    }
+  }
+}
+
 function normalizeMetadata(raw: unknown): JobMetadata {
   const data = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const folder = typeof data.folder === "string" ? data.folder.trim() : "";
@@ -170,6 +330,9 @@ function normalizeMetadata(raw: unknown): JobMetadata {
     copies: typeof data.copies === "string" ? data.copies : "",
     color: typeof data.color === "string" ? data.color : "",
     folder: folder || "General",
+    batchId: typeof data.batchId === "string" ? data.batchId : undefined,
+    uploadIndex: typeof data.uploadIndex === "number" ? data.uploadIndex : undefined,
+    originalFilename: typeof data.originalFilename === "string" ? data.originalFilename : undefined,
     status: isValidStatus(data.status) ? data.status : "pending",
   };
 }
@@ -303,9 +466,10 @@ async function listBlobJobs(bucket: JobBucket): Promise<PrintJob[]> {
       const relativePath = extractRelativePathFromBlobPath(blob.pathname, bucket);
       const fileName = relativePath.split("/").pop() ?? "file";
       const metadataResult = await readBlobMetadata(bucket, relativePath);
+      const displayName = metadataResult.metadata.originalFilename || fileName;
 
       return {
-        filename: fileName,
+        filename: displayName,
         timestamp: extractTimestamp(fileName, blob.uploadedAt.getTime()),
         bucket,
         relativePath,
@@ -330,9 +494,10 @@ async function getBlobJob(bucket: JobBucket, relativePath: string): Promise<Prin
     const blobHead = await head(blobPath);
     const metadataResult = await readBlobMetadata(bucket, cleanRelativePath);
     const fileName = cleanRelativePath.split("/").pop() ?? "file";
+    const displayName = metadataResult.metadata.originalFilename || fileName;
 
     return {
-      filename: fileName,
+      filename: displayName,
       timestamp: extractTimestamp(fileName, blobHead.uploadedAt.getTime()),
       bucket,
       relativePath: bucket === "done" ? `done/${cleanRelativePath}` : cleanRelativePath,
@@ -499,9 +664,10 @@ async function listJobsInDirectory(
         ? `${relativePrefix}/${entry.name}`
         : entry.name;
       const metadata = await readFilesystemMetadata(bucket, relativePath);
+      const displayName = metadata.originalFilename || entry.name;
 
       jobs.push({
-        filename: entry.name,
+        filename: displayName,
         timestamp: extractTimestamp(entry.name, stats.mtimeMs),
         bucket,
         relativePath,
@@ -552,9 +718,10 @@ export async function getUploadJob(filename: string): Promise<PrintJob | null> {
   const stats = await stat(filePath);
   const fileName = path.basename(filePath);
   const metadata = await readFilesystemMetadata("active", safeRelativePath);
+  const displayName = metadata.originalFilename || fileName;
 
   return {
-    filename: fileName,
+    filename: displayName,
     timestamp: extractTimestamp(fileName, stats.mtimeMs),
     bucket: "active",
     relativePath: safeRelativePath,
@@ -683,15 +850,15 @@ export async function moveUploadJobToDone(filename: string, expectedStatus?: Job
 
       const fileName = safeRelativePath.split("/").pop() ?? "file";
       const activeFilePath = getBlobFilePath("active", safeRelativePath);
-      const doneFilePath = getBlobFilePath("done", safeRelativePath);
+      const doneRelativePath = await copyBlobToUniquePath(
+        activeFilePath,
+        "done",
+        path.dirname(safeRelativePath),
+        fileName,
+        getMimeType(fileName)
+      );
 
-      await copy(activeFilePath, doneFilePath, {
-        access: "private",
-        allowOverwrite: true,
-        addRandomSuffix: false,
-        contentType: getMimeType(fileName),
-      });
-      await putPrivateJson(getBlobMetadataPath("done", safeRelativePath), {
+      await putPrivateJson(getBlobMetadataPath("done", doneRelativePath), {
         ...metadataResult.metadata,
         status: "done",
       });
@@ -719,15 +886,19 @@ export async function moveUploadJobToDone(filename: string, expectedStatus?: Job
       relativeDir && relativeDir !== "." ? path.join(doneDir, relativeDir) : doneDir;
 
     await mkdir(targetDir, { recursive: true });
-
-    const doneRelativePath = `done/${safeRelativePath}`;
     const metadata = await readFilesystemMetadata("active", safeRelativePath);
 
     if (expectedStatus && metadata.status !== expectedStatus) {
       return false;
     }
 
-    await rename(sourceFilePath, path.join(targetDir, fileName));
+    const targetRelativePath = await moveFilesystemFileToUniquePath(
+      sourceFilePath,
+      "done",
+      relativeDir,
+      fileName
+    );
+    const doneRelativePath = `done/${targetRelativePath}`;
     await writeFilesystemMetadata("done", doneRelativePath, { ...metadata, status: "done" });
     await removeFilesystemMetadata("active", safeRelativePath);
     return true;
@@ -752,15 +923,15 @@ export async function moveDoneJobToPending(filename: string) {
       const metadataResult = await readBlobMetadata("done", safeRelativePath);
       const fileName = safeRelativePath.split("/").pop() ?? "file";
       const doneFilePath = getBlobFilePath("done", safeRelativePath);
-      const activeFilePath = getBlobFilePath("active", safeRelativePath);
+      const activeRelativePath = await copyBlobToUniquePath(
+        doneFilePath,
+        "active",
+        path.dirname(safeRelativePath),
+        fileName,
+        getMimeType(fileName)
+      );
 
-      await copy(doneFilePath, activeFilePath, {
-        access: "private",
-        allowOverwrite: true,
-        addRandomSuffix: false,
-        contentType: getMimeType(fileName),
-      });
-      await putPrivateJson(getBlobMetadataPath("active", safeRelativePath), {
+      await putPrivateJson(getBlobMetadataPath("active", activeRelativePath), {
         ...metadataResult.metadata,
         status: "pending",
       });
@@ -790,8 +961,13 @@ export async function moveDoneJobToPending(filename: string) {
   const doneRelativePath = `done/${safeRelativePath}`;
   const metadata = await readFilesystemMetadata("done", doneRelativePath);
 
-  await rename(doneFilePath, path.join(targetDir, fileName));
-  await writeFilesystemMetadata("active", safeRelativePath, { ...metadata, status: "pending" });
+  const activeRelativePath = await moveFilesystemFileToUniquePath(
+    doneFilePath,
+    "active",
+    relativeDir,
+    fileName
+  );
+  await writeFilesystemMetadata("active", activeRelativePath, { ...metadata, status: "pending" });
   await removeFilesystemMetadata("done", doneRelativePath);
   return true;
 }
@@ -850,22 +1026,9 @@ export async function storeUploadedBatch({
   if (getStorageDriver() === "blob") {
     for (let index = 0; index < files.length; index += 1) {
       const file = files[index];
-      const safeOriginalName = file.name
-        .replace(/\\/g, "")
-        .replace(/\//g, "")
-        .replace(/\s+/g, "_")
-        .replace(/[^a-zA-Z0-9._-]/g, "");
+      const safeOriginalName = sanitizeUploadedFilename(file.name);
       const originalName = safeOriginalName || "upload.bin";
-      const uniqueFileName = `${Date.now()}-${batchId}-${index}-${originalName}`;
-      const relativePath = `${normalizedFolder}/${uniqueFileName}`;
-
-      await put(getBlobFilePath("active", relativePath), file, {
-        access: "private",
-        addRandomSuffix: false,
-        allowOverwrite: true,
-        contentType: file.type || getMimeType(originalName),
-        multipart: file.size > 5 * 1024 * 1024,
-      });
+      const relativePath = await storeBlobFileWithUniqueName("active", normalizedFolder, originalName, file);
       await putPrivateJson(getBlobMetadataPath("active", relativePath), {
         name: customerName,
         size: size || String(file.size),
@@ -873,6 +1036,7 @@ export async function storeUploadedBatch({
         color,
         folder: normalizedFolder,
         batchId,
+        uploadIndex: index,
         originalFilename: originalName,
         status: "pending",
       });
@@ -880,6 +1044,7 @@ export async function storeUploadedBatch({
       jobs.push({
         filename: originalName,
         relativePath,
+        uploadIndex: index,
         status: "pending",
       });
     }
@@ -901,34 +1066,29 @@ export async function storeUploadedBatch({
   await mkdir(getMetadataDir("done"), { recursive: true });
   await mkdir(getTmpDir(), { recursive: true });
   await mkdir(uploadsDir, { recursive: true });
-  const targetFolderPath = path.join(uploadsDir, normalizedFolder);
-  await mkdir(targetFolderPath, { recursive: true });
+  await mkdir(path.join(uploadsDir, normalizedFolder), { recursive: true });
 
   for (let index = 0; index < files.length; index += 1) {
     const file = files[index];
-    const safeOriginalName = file.name
-      .replace(/\\/g, "")
-      .replace(/\//g, "")
-      .replace(/\s+/g, "_")
-      .replace(/[^a-zA-Z0-9._-]/g, "");
+    const safeOriginalName = sanitizeUploadedFilename(file.name);
     const originalName = safeOriginalName || "upload.bin";
-    const uniqueFileName = `${Date.now()}-${batchId}-${index}-${originalName}`;
-    const relativePath = `${normalizedFolder}/${uniqueFileName}`;
-    const savePath = path.join(targetFolderPath, uniqueFileName);
-
-    await writeWebFileToDisk(file, savePath);
+    const relativePath = await storeFilesystemFileWithUniqueName("active", normalizedFolder, originalName, file);
     await writeFilesystemMetadata("active", relativePath, {
       name: customerName,
       size: size || String(file.size),
       copies,
       color,
       folder: normalizedFolder,
+      batchId,
+      uploadIndex: index,
+      originalFilename: originalName,
       status: "pending",
     });
 
     jobs.push({
       filename: originalName,
       relativePath,
+      uploadIndex: index,
       status: "pending",
     });
   }

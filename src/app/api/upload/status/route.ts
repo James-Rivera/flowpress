@@ -26,6 +26,8 @@ type StatusItem = {
   updatedAt: number;
 };
 
+type BatchManifestJob = NonNullable<Awaited<ReturnType<typeof getBatchManifest>>>["jobs"][number];
+
 function sanitizeBatchId(batchId: string) {
   return batchId.replace(/[^a-zA-Z0-9_-]/g, "");
 }
@@ -120,7 +122,12 @@ export async function GET(request: NextRequest) {
 
   const snapshot = await getQueueSnapshot();
 
-  const resolveStatus = (relativePath: string, fallbackFilename?: string): StatusItem => {
+  const resolveStatus = (
+    relativePath: string,
+    fallbackFilename?: string,
+    batchJob?: BatchManifestJob,
+    batchId?: string
+  ): StatusItem => {
     const activeJob = snapshot.activeJobsByPath.get(relativePath);
 
     if (activeJob) {
@@ -137,6 +144,28 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    const matchedActiveJob =
+      batchId && typeof batchJob?.uploadIndex === "number"
+        ? snapshot.activeJobs.find(
+            (job) =>
+              job.metadata.batchId === batchId && job.metadata.uploadIndex === batchJob.uploadIndex
+          )
+        : null;
+
+    if (matchedActiveJob) {
+      const isPending = matchedActiveJob.metadata.status === "pending";
+      const pendingIndex = snapshot.pendingPositions.get(matchedActiveJob.relativePath) ?? -1;
+
+      return {
+        relativePath: matchedActiveJob.relativePath,
+        status: matchedActiveJob.metadata.status as StatusValue,
+        queuePosition: isPending && pendingIndex >= 0 ? pendingIndex + 1 : null,
+        queueAhead: isPending && pendingIndex >= 0 ? pendingIndex : null,
+        filename: fallbackFilename ?? matchedActiveJob.filename,
+        updatedAt: matchedActiveJob.timestamp,
+      };
+    }
+
     const doneJob = snapshot.doneJobsByPath.get(relativePath);
 
     if (doneJob) {
@@ -147,6 +176,25 @@ export async function GET(request: NextRequest) {
         queueAhead: null,
         filename: fallbackFilename ?? doneJob.filename,
         updatedAt: doneJob.timestamp,
+      };
+    }
+
+    const matchedDoneJob =
+      batchId && typeof batchJob?.uploadIndex === "number"
+        ? snapshot.doneJobs.find(
+            (job) =>
+              job.metadata.batchId === batchId && job.metadata.uploadIndex === batchJob.uploadIndex
+          )
+        : null;
+
+    if (matchedDoneJob) {
+      return {
+        relativePath: matchedDoneJob.relativePath,
+        status: "done",
+        queuePosition: null,
+        queueAhead: null,
+        filename: fallbackFilename ?? matchedDoneJob.filename,
+        updatedAt: matchedDoneJob.timestamp,
       };
     }
 
@@ -175,7 +223,9 @@ export async function GET(request: NextRequest) {
       ));
     }
 
-    const jobs = manifest.jobs.map((job) => resolveStatus(job.relativePath, job.filename));
+    const jobs = manifest.jobs.map((job) =>
+      resolveStatus(job.relativePath, job.filename, job, manifest.batchId)
+    );
     const summary = summarize(jobs);
 
     return withPublicApiCors(request, NextResponse.json({

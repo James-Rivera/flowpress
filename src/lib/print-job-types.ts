@@ -11,6 +11,7 @@ export type JobMetadata = {
   color: string;
   folder: string;
   batchId?: string;
+  uploadIndex?: number;
   originalFilename?: string;
   status: JobStatus;
 };
@@ -30,6 +31,7 @@ export type BatchManifest = {
   jobs: Array<{
     filename: string;
     relativePath: string;
+    uploadIndex?: number;
     status: "pending";
   }>;
 };
